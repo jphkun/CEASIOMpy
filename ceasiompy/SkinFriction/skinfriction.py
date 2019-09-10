@@ -7,14 +7,15 @@ Calculate skin friction drag coefficent
 
 Python version: >=3.6
 
-| Author : Aidan Jungo
+| Author: Aidan Jungo
 | Creation: 2019-06-13
-| Last modifiction: 2019-08-23
+| Last modifiction: 2019-08-29
 
 TODO:
 
     * update __specs__ file
-    * Check if projected value are realistic for different cases
+    * Redo test functions
+    * (Check if projected value are realistic for different cases)
 
 """
 
@@ -28,10 +29,12 @@ import math
 from ceasiompy.utils.ceasiomlogger import get_logger
 from ceasiompy.utils.standardatmosphere import get_atmosphere
 from ceasiompy.utils.cpacsfunctions import open_tixi, open_tigl, close_tixi, \
-                                     get_value, get_value_or_default,  \
-                                     create_branch
+                                           get_value, get_value_or_default,  \
+                                           create_branch
 
-from ceasiompy.utils.apmfunctions import get_apm_xpath, get_apm,create_empty_apm, save_aero_coef, save_param,AeroCoefficient
+from ceasiompy.utils.apmfunctions import AeroCoefficient, get_aeromap_uid_list,\
+                                         get_aeromap, create_empty_aeromap,    \
+                                         save_parameters, save_coefficients
 
 from ceasiompy.utils.moduleinterfaces import check_cpacs_input_requirements
 from ceasiompy.SkinFriction.__specs__ import cpacs_inout
@@ -62,7 +65,7 @@ def get_largest_wing_dim(tixi,tigl):
         * TIGL functions : http://tigl.sourceforge.net/Doc/
 
     Args:
-        tixi (handles):  TIXI Handle
+        tixi (handles): TIXI Handle
         tigl (handles): TIGL Handle
 
     Returns:
@@ -150,7 +153,8 @@ def add_skin_friction(cpacs_path,cpacs_out_path):
     """ Function to add the skin frinction drag coeffienct to aerodynamic coefficients
 
     Function 'add_skin_friction' add the skin friction drag 'cd0' to  the
-    active aeroMap (for now, the one from SU2). It create a new aeroMap where
+    SU2 and pyTornado aeroMap, if their UID is not geven, it will add skin
+    friction to all aeroMap. For each aeroMap it creates a new aeroMap where
     the skin friction drag coeffienct is added with the correct projcetions.
 
     Args:
@@ -164,82 +168,107 @@ def add_skin_friction(cpacs_path,cpacs_out_path):
     wing_area_max, wing_span_max = get_largest_wing_dim(tixi,tigl)
 
     analysis_xpath = '/cpacs/toolspecific/CEASIOMpy/geometry/analysis'
-    range_xpath = '/cpacs/toolspecific/CEASIOMpy/ranges'
 
     # Requiered input data from CPACS
     wetted_area = get_value(tixi,analysis_xpath + '/wettedArea')
 
     # Wing area/span, default values will be calated if no value found in the CPACS file
     wing_area_xpath = analysis_xpath + '/wingArea'
-    tixi, wing_area = get_value_or_default(tixi,wing_area_xpath, wing_area_max)
+    wing_area = get_value_or_default(tixi,wing_area_xpath, wing_area_max)
     wing_span_xpath = analysis_xpath + '/wingSpan'
-    tixi, wing_span = get_value_or_default(tixi,wing_span_xpath, wing_span_max)
+    wing_span = get_value_or_default(tixi,wing_span_xpath, wing_span_max)
 
-    # Get aeroPerformanceMap XPath
-    active_aeroMap_xpath = SU2_XPATH + '/aeroMapUID'
-    apm_xpath = get_apm_xpath(tixi,active_aeroMap_xpath)
+    aeromap_uid_list = []
+    # Try to get SU2 aeroMap
+    su2_aeroMap_xpath = SU2_XPATH + '/aeroMapUID'
+    if tixi.checkElement(su2_aeroMap_xpath):
+        aeromap_uid_list.append(get_value(tixi,su2_aeroMap_xpath))
 
-    # Get orignial aeroPerformanceMap
-    AeroCoef = get_apm(tixi,apm_xpath)
+    # Try to get pyTornado aeroMap
+    pyTornado_aeroMap_xpath = '/cpacs/toolspecific/pytornado/aeroMapUID'
+    if tixi.checkElement(pyTornado_aeroMap_xpath):
+        aeromap_uid_list.append(get_value(tixi,pyTornado_aeroMap_xpath))
 
-    # Create new aeroCoefficient object to store coef with added skin friction
-    AeroCoefSF = AeroCoefficient()
-    AeroCoefSF.alt = AeroCoef.alt
-    AeroCoefSF.mach = AeroCoef.mach
-    AeroCoefSF.aoa = AeroCoef.aoa
-    AeroCoefSF.aos = AeroCoef.aos
+    # If pyTornado and SU2 aeroMap was not define, get all existing aeroMap
+    if len(aeromap_uid_list) == 0:
+        aeromap_uid_list = get_aeromap_uid_list(tixi)
 
-    # Iterate over all cases
-    case_count = AeroCoef.get_count()
-    for case in range(case_count):
+    # If no aeroMap --> Error
+    if len(aeromap_uid_list) == 0:
+        raise ValueError('No aeroMap has been found in this CPACS file, skin friction cannot be added!')
 
-        # Get parameters for this case
-        alt = AeroCoef.alt[case]
-        mach = AeroCoef.mach[case]
-        aoa = AeroCoef.aoa[case]
-        aos = AeroCoefSF.aos[case]
+    # Add skin friction to all listed aeroMap
+    for aeromap_uid in aeromap_uid_list:
 
-        # Calculate Cd0 for this case
-        cd0 = estimate_skin_friction_coef(wetted_area,wing_area,wing_span, \
-                                          mach,alt)
+        log.info('adding skin friction coefficients to: ' + aeromap_uid)
 
-        # Projection of cd0 on cl, cd and cs axis TODO: check!!!
-        aoa_rad = math.radians(aoa)
-        aos_rad = math.radians(aos)
-        cd0_cl = cd0 * math.sin(aoa_rad)
-        cd0_cd = cd0 * math.cos(aoa_rad) * math.cos(aos_rad)
-        cd0_cs = cd0 * math.sin(aos_rad)
+        # Get orignial aeroPerformanceMap
+        AeroCoef = get_aeromap(tixi,aeromap_uid)
+        AeroCoef.complete_with_zeros()
 
-        # Update aerodynamic coefficients
-        cl = AeroCoef.cl[case] + cd0_cl
-        cd = AeroCoef.cd[case] + cd0_cd
-        cs = AeroCoef.cs[case] + cd0_cs
+        # Create new aeroCoefficient object to store coef with added skin friction
+        AeroCoefSF = AeroCoefficient()
+        AeroCoefSF.alt = AeroCoef.alt
+        AeroCoefSF.mach = AeroCoef.mach
+        AeroCoefSF.aoa = AeroCoef.aoa
+        AeroCoefSF.aos = AeroCoef.aos
 
-        # Shoud we change something? e.i. if a force is not apply at aero center...?
-        cml = AeroCoef.cml[case]
-        cmd = AeroCoef.cmd[case]
-        cms = AeroCoef.cms[case]
+        # Iterate over all cases
+        case_count = AeroCoef.get_count()
+        for case in range(case_count):
 
-        # Add new coefficients into the aeroCoefficient object
-        AeroCoefSF.add_coefficients(cl,cd,cs,cml,cmd,cms)
+            # Get parameters for this case
+            alt = AeroCoef.alt[case]
+            mach = AeroCoef.mach[case]
+            aoa = AeroCoef.aoa[case]
+            aos = AeroCoef.aos[case]
 
-    # Create new aeroMap UID
-    aeroMap_uid = get_value(tixi,active_aeroMap_xpath)
-    new_aeroMap_uid = aeroMap_uid + '_SkinFriction'
+            # Calculate Cd0 for this case
+            cd0 = estimate_skin_friction_coef(wetted_area,wing_area,wing_span, \
+                                              mach,alt)
 
-    # Create new description
-    description_xpath = tixi.uIDGetXPath(aeroMap_uid) + '/description'
-    new_description = get_value(tixi,description_xpath) +  ' Skin friction has been add to this AeroMap.'
-    create_empty_apm(tixi,new_aeroMap_uid, new_description)
+            # Projection of cd0 on cl, cd and cs axis TODO: check!!!
+            aoa_rad = math.radians(aoa)
+            aos_rad = math.radians(aos)
+            cd0_cl = cd0 * math.sin(aoa_rad)
+            cd0_cd = cd0 * math.cos(aoa_rad) * math.cos(aos_rad)
+            cd0_cs = cd0 * math.sin(aos_rad)
 
-    # Save aeroCoefficient object Coef in the CPACS file
-    new_apm_xpath = tixi.uIDGetXPath(new_aeroMap_uid) + '/aeroPerformanceMap'
-    save_param(tixi,new_apm_xpath,AeroCoefSF)
-    save_aero_coef(tixi,new_apm_xpath,AeroCoefSF)
+            # Update aerodynamic coefficients
+            cl = AeroCoef.cl[case] + cd0_cl
+            cd = AeroCoef.cd[case] + cd0_cd
+            cs = AeroCoef.cs[case] + cd0_cs
 
+            # Shoud we change something? e.i. if a force is not apply at aero center...?
+            if len(AeroCoef.cml):
+                cml = AeroCoef.cml[case]
+            else:
+                cml = 0.0  # Shoud be change, just to test pyTornado
+            if len(AeroCoef.cmd):
+                cmd = AeroCoef.cmd[case]
+            else:
+                cmd = 0.0
+            if len(AeroCoef.cms):
+                cms = AeroCoef.cms[case]
+            else:
+                cms = 0.0
 
+            # Add new coefficients into the aeroCoefficient object
+            AeroCoefSF.add_coefficients(cl,cd,cs,cml,cmd,cms)
 
-    log.info('AeroMap "' + aeroMap_uid + '" has been added to the CPACS file')
+        # Create new aeroMap UID
+        aeromap_sf_uid = aeromap_uid + '_SkinFriction'
+
+        # Create new description
+        description_xpath = tixi.uIDGetXPath(aeromap_uid) + '/description'
+        sf_description = get_value(tixi,description_xpath) +  ' Skin friction has been add to this AeroMap.'
+        create_empty_aeromap(tixi,aeromap_sf_uid, sf_description)
+
+        # Save aeroCoefficient object Coef in the CPACS file
+        save_parameters(tixi,aeromap_sf_uid,AeroCoefSF)
+        save_coefficients(tixi,aeromap_sf_uid,AeroCoefSF)
+
+    log.info('AeroMap "' + aeromap_uid + '" has been added to the CPACS file')
 
     close_tixi(tixi,cpacs_out_path)
 
@@ -268,43 +297,7 @@ if __name__ == '__main__':
 # TODO: Adapt the code deal with fixed CL mode case, then this function could be deleted completly
 
 # def add_skin_friction(cpacs_path,cpacs_out_path):
-#     """ Function to add the skin frinction drag coeffienct to the CPACS file
-#
-#     Function 'add_skin_friction' add the skin friction drag 'cd0' to the CPACS
-#     file, then it could be added to the drag coeffienct obtain with Euler
-#     calcualtions or other methods
-#
-#     Args:
-#         cpacs_path (str):  Path to CPACS file
-#         cpacs_out_path (str): Path to CPACS output file
-#     """
-#
-#     tixi = open_tixi(cpacs_path)
-#     tigl = open_tigl(tixi)
-#
-#     wing_area_max, wing_span_max = get_largest_wing_dim(tixi,tigl)
-#
-#     analysis_xpath = '/cpacs/toolspecific/CEASIOMpy/geometry/analysis'
-#     range_xpath = '/cpacs/toolspecific/CEASIOMpy/ranges'
-#
-#     # Requiered input data from CPACS
-#     wetted_area = get_value(tixi,analysis_xpath + '/wettedArea')
-#
-#     # Not requiered input data (a default value will be used if no
-#     # value has been found in the CPACS file)
-#     wing_area_xpath = analysis_xpath + '/wingArea'
-#     tixi, wing_area = get_value_or_default(tixi,wing_area_xpath, wing_area_max)
-#     if wing_area != wing_area_max:
-#         log.warning('Wing area found in the CPACS file /toolspecific is \
-#                      different from the one calculated from geometry, \
-#                      /toolspecific value will be used')
-#
-#     wing_span_xpath = analysis_xpath + '/wingSpan'
-#     tixi, wing_span = get_value_or_default(tixi,wing_span_xpath, wing_span_max)
-#     if wing_span != wing_span_max:
-#        log.warning('Wing span found in the CPACS file /toolspecific is \
-#                     different from the one calculated from geometry, \
-#                     /toolspecific value will be used')
+
 #
 #     cruise_alt_xpath = range_xpath + '/cruiseAltitude'
 #     tixi, cruise_alt = get_value_or_default(tixi,cruise_alt_xpath,12000)

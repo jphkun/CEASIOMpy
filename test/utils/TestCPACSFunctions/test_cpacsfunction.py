@@ -9,7 +9,7 @@ Python version: >=3.6
 
 | Author : Aidan Jungo
 | Creation: 2018-10-02
-| Last modifiction: 2019-08-07
+| Last modifiction: 2019-08-27
 """
 
 #==============================================================================
@@ -27,9 +27,11 @@ from tixi3.tixi3wrapper import Tixi3Exception
 from tigl3.tigl3wrapper import Tigl3Exception
 
 from ceasiompy.utils.ceasiomlogger import get_logger
-from ceasiompy.utils.cpacsfunctions import open_tixi, open_tigl, close_tixi, \
-                                     get_value, get_value_or_default,  \
-                                     create_branch, copy_branch, aircraft_name
+from ceasiompy.utils.cpacsfunctions import open_tixi, open_tigl, close_tixi,   \
+                                     add_uid, get_value, get_value_or_default, \
+                                     create_branch, copy_branch, aircraft_name,\
+                                     add_float_vector, get_float_vector,       \
+                                     add_string_vector, get_string_vector
 
 log = get_logger(__file__.split('.')[0])
 
@@ -100,7 +102,7 @@ def test_close_tixi():
 
     # Remove /ToolOutput directory
     tooloutput_dir = MODULE_DIR + '/ToolOutput'
-    shutil.rmtree(tooloutput_dir)
+    shutil.rmtree(tooloutput_dir,ignore_errors=True)
     log.info(str(tooloutput_dir) + ' has been remove for a test.')
 
     # Save unmodified tixi in the output CPACS file
@@ -121,17 +123,17 @@ def test_close_tixi():
 def test_create_branch():
     """Test the function 'create_branch'"""
 
-    tixi_handle = open_tixi(CPACS_IN_PATH)
+    tixi = open_tixi(CPACS_IN_PATH)
 
     update_branch = '/cpacs/header/updates/update'
     new_branch = '/cpacs/header/updates/update[3]/test/test1/test2'
 
     # This branch should be added
-    tixi = create_branch(tixi_handle, update_branch, True)
+    create_branch(tixi, update_branch, True)
     # This branch should not be added
-    tixi = create_branch(tixi, update_branch, False)
+    create_branch(tixi, update_branch, False)
     # 'new_branch' should be added
-    tixi = create_branch(tixi, new_branch)
+    create_branch(tixi, new_branch)
 
     # Save modified tixi in the output CPACS file
     close_tixi(tixi, CPACS_OUT_PATH)
@@ -152,28 +154,58 @@ def test_create_branch():
 def test_copy_branch():
     """Test the function 'copy_branch'"""
 
-    tixi_handle = open_tixi(CPACS_IN_PATH)
+    tixi = open_tixi(CPACS_IN_PATH)
 
     # Create a new 'header' branch and copy the original 'header' into it
     xpath_new = '/cpacs/header'
     xpath_from = '/cpacs/header[1]'
     xpath_to = '/cpacs/header[2]'
-    tixi = create_branch(tixi_handle, xpath_new, True)
-    tixi = copy_branch(tixi, xpath_from, xpath_to)
+    create_branch(tixi, xpath_new, True)
+    copy_branch(tixi, xpath_from, xpath_to)
 
     # Check if a specific element has been copied
     xpath_elem_from = '/cpacs/header[1]/updates/update[1]/timestamp'
     xpath_elem_to = '/cpacs/header[2]/updates/update[1]/timestamp'
-    elem_from = tixi_handle.getTextElement(xpath_elem_from)
+    elem_from = tixi.getTextElement(xpath_elem_from)
     elem_to = tixi.getTextElement(xpath_elem_to)
 
     assert elem_from == elem_to
 
     # Check if a specific attribute has been copied
-    attrib_text_from = tixi_handle.getTextAttribute(xpath_elem_from, 'uID')
+    attrib_text_from = tixi.getTextAttribute(xpath_elem_from, 'uID')
     attrib_text_to = tixi.getTextAttribute(xpath_elem_to, 'uID')
 
     assert attrib_text_from == attrib_text_to
+
+
+def test_add_uid():
+    """Test the function 'get_value'"""
+
+    tixi = open_tixi(CPACS_IN_PATH)
+
+    # Update UID
+    xpath = '/cpacs/vehicles/aircraft/model'
+    new_uid = 'New_aircrat_name'
+    add_uid(tixi,xpath,new_uid)
+    updated_uid = tixi.getTextAttribute(xpath, 'uID')
+
+    assert updated_uid == new_uid
+
+    # Add UID
+    xpath = '/cpacs/vehicles/aircraft/model/name'
+    new_uid = 'nameUID'
+    add_uid(tixi,xpath,new_uid)
+    added_uid = tixi.getTextAttribute(xpath, 'uID')
+
+    assert added_uid == new_uid
+
+    # Add existing UID (should add "1" at the end of the UID)
+    xpath = '/cpacs/vehicles/aircraft/model/name'
+    new_uid = 'SimpleFuselage'
+    add_uid(tixi,xpath,new_uid)
+    added_uid = tixi.getTextAttribute(xpath, 'uID')
+
+    assert added_uid == 'SimpleFuselage1'
 
 
 def test_get_value():
@@ -209,34 +241,132 @@ def test_get_value_or_default():
 
     # Check if the correct value (float) is return from an xpath
     xpath = '/cpacs/vehicles/aircraft/model/reference/area'
-    tixi, value = get_value_or_default(tixi,xpath,2.0)
+    value = get_value_or_default(tixi,xpath,2.0)
     assert value == 1.0
 
     # Check if the correct value (text) is return from an xpath
     xpath = '/cpacs/vehicles/aircraft/model/name'
-    tixi, value = get_value_or_default(tixi,xpath,'name')
+    value = get_value_or_default(tixi,xpath,'name')
     assert value == 'Cpacs2Test'
 
     # Check if a non exitant xpath leads to its creation (integer)
     xpath = '/cpacs/vehicles/aircraft/model/reference/newSpan'
-    tixi, value = get_value_or_default(tixi,xpath,100)
+    value = get_value_or_default(tixi,xpath,100)
     assert value == 100
     new_elem = tixi.getDoubleElement(xpath)
     assert new_elem == 100
 
     # Check if a non exitant xpath leads to its creation (float)
     xpath = '/cpacs/vehicles/aircraft/model/reference/newArea'
-    tixi, value = get_value_or_default(tixi,xpath,1000.0)
+    value = get_value_or_default(tixi,xpath,1000.0)
     assert value == 1000.0
     new_elem = tixi.getDoubleElement(xpath)
     assert new_elem == 1000.0
 
     # Check if a non exitant xpath leads to its creation (text)
     xpath = '/cpacs/vehicles/aircraft/model/reference/newRef'
-    tixi, value = get_value_or_default(tixi,xpath,'test')
+    value = get_value_or_default(tixi,xpath,'test')
     assert value == 'test'
     new_elem = tixi.getTextElement(xpath)
     assert new_elem =='test'
+
+
+def test_add_float_vector():
+    """ Test the function 'test_add_float_vector'"""
+
+    tixi = open_tixi(CPACS_IN_PATH)
+    xpath = '/cpacs/toolspecific/CEASIOMpy/testVector/'
+
+    # Add a new vector
+    float_vector = [0.0, 1.1, 5.5]
+    add_float_vector(tixi,xpath,float_vector)
+    added_float_vector = list(tixi.getFloatVector(xpath,3))
+
+    assert added_float_vector == float_vector
+
+    # Update a vector
+    float_vector = [2.9, 10.999, 1e5]
+    add_float_vector(tixi,xpath,float_vector)
+    added_float_vector = list(tixi.getFloatVector(xpath,3))
+
+    assert added_float_vector == float_vector
+
+
+def test_get_float_vector():
+    """ Test the function 'test_get_float_vector'"""
+
+    tixi = open_tixi(CPACS_IN_PATH)
+    xpath = '/cpacs/toolspecific/CEASIOMpy/testVector'
+
+    # Add a new vector
+    float_vector = [0.0, 1.1, 5.5]
+    add_float_vector(tixi,xpath,float_vector)
+
+    # Get a float vector
+    float_vector_get = get_float_vector(tixi,xpath)
+
+    assert float_vector_get == float_vector
+
+    # Raise an error when the XPath is wrong
+    wrong_xpath = '/cpacs/toolspecific/CEASIOMpy/testVectorWrong'
+    with pytest.raises(ValueError):
+        vector = get_float_vector(tixi,wrong_xpath)
+
+    # Raise an error when no value at XPath
+    no_value_xpath = '/cpacs/toolspecific/CEASIOMpy'
+    with pytest.raises(ValueError):
+        vector = get_float_vector(tixi,no_value_xpath)
+
+
+def test_add_sting_vector():
+    """ Test the function 'test_add_sting_vector'"""
+
+    tixi = open_tixi(CPACS_IN_PATH)
+    xpath = '/cpacs/toolspecific/CEASIOMpy/testVector/'
+
+    # Add a new vector
+    string_vector = ['aaa','bbb','ccc']
+    add_string_vector(tixi,xpath,string_vector)
+    added_sting_vector_str = tixi.getTextElement(xpath)
+    added_sting_vector = added_sting_vector_str.split(';')
+    added_sting_vector = [str(elem) for elem in added_sting_vector]
+
+    assert added_sting_vector == string_vector
+
+    # Update a vector
+    string_vector = ['abc','123','test-01']
+    add_string_vector(tixi,xpath,string_vector)
+    added_sting_vector_str = tixi.getTextElement(xpath)
+    added_sting_vector = added_sting_vector_str.split(';')
+    added_sting_vector = [str(elem) for elem in added_sting_vector]
+
+    assert added_sting_vector == string_vector
+
+
+def test_get_string_vector():
+    """ Test the function 'test_get_string_vector'"""
+
+    tixi = open_tixi(CPACS_IN_PATH)
+    xpath = '/cpacs/toolspecific/CEASIOMpy/testVector'
+
+    # Add a new vector
+    string_vector = ['aaa', 'zzz']
+    add_string_vector(tixi,xpath,string_vector)
+
+    # Get a string vector
+    string_vector_get = get_string_vector(tixi,xpath)
+
+    assert string_vector_get == string_vector
+
+    # Raise an error when the XPath is wrong
+    wrong_xpath = '/cpacs/toolspecific/CEASIOMpy/testVectorWrong'
+    with pytest.raises(ValueError):
+        vector = get_string_vector(tixi,wrong_xpath)
+
+    # Raise an error when no value at XPath
+    no_value_xpath = '/cpacs/toolspecific/CEASIOMpy'
+    with pytest.raises(ValueError):
+        vector = get_string_vector(tixi,no_value_xpath)
 
 
 def test_aircraft_name():
@@ -255,3 +385,5 @@ if __name__ == '__main__':
     log.info('Running Test CPACS Functions')
     log.info('To run test use the following command:')
     log.info('>> pytest -v')
+    log.info('or')
+    log.info('>> pytest -vs  (for more details)')

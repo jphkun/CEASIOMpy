@@ -32,7 +32,12 @@ from ceasiompy.utils.ceasiomlogger import get_logger
 from ceasiompy.utils.cpacsfunctions import open_tixi, close_tixi,              \
                                            get_value, get_value_or_default,    \
                                            create_branch
-from ceasiompy.utils.apmfunctions import get_apm_xpath, get_apm, AeroCoefficient
+
+from ceasiompy.utils.apmfunctions import AeroCoefficient, get_aeromap_uid_list,\
+                                         check_aeromap, get_aeromap,               \
+                                         create_empty_aeromap,                 \
+                                         save_parameters, save_coefficients
+
 from ceasiompy.utils.standardatmosphere import get_atmosphere
 from ceasiompy.utils.moduleinterfaces import check_cpacs_input_requirements
 from ceasiompy.SU2Config.__specs__ import cpacs_inout
@@ -72,7 +77,7 @@ def get_mesh_marker(su2_mesh_path):
                 marker_list.append(new_marker)
 
     if not marker_list:
-        log.warning('No "MARK ER_TAG" has been found in the mesh!')
+        log.warning('No "MARKER_TAG" has been found in the mesh!')
 
     return marker_list
 
@@ -88,7 +93,7 @@ def create_config_dictionnary():
         No args
 
     Returns:
-        config_dict (dict):  Dictionary of the default config file
+        config_dict (dict): Dictionary of the default config file
         config_file_lines (list): List of line of the default config file
 
     """
@@ -150,31 +155,32 @@ def generate_config_case(cpacs_path, cpacs_out_path, su2_mesh_path):
     # Settings
     settings_xpath = su2_xpath + '/settings'
     max_iter_xpath = settings_xpath + '/maxIter'
-    tixi, max_iter = get_value_or_default(tixi, max_iter_xpath,200)
+    max_iter = get_value_or_default(tixi, max_iter_xpath,200)
     cfl_nb_xpath = settings_xpath + '/cflNumber'
-    tixi, cfl_nb = get_value_or_default(tixi, cfl_nb_xpath,1.0)
+    cfl_nb = get_value_or_default(tixi, cfl_nb_xpath,1.0)
     mg_level_xpath =  settings_xpath + '/multigridLevel'
-    tixi, mg_level = get_value_or_default(tixi, mg_level_xpath,3)
+    mg_level = get_value_or_default(tixi, mg_level_xpath,3)
 
     # Mesh Marker
     bc_wall_xpath = su2_xpath + '/boundaryConditions/wall'
     bc_wall_list = get_mesh_marker(su2_mesh_path)
-    tixi = create_branch(tixi, bc_wall_xpath)
+    create_branch(tixi, bc_wall_xpath)
     bc_wall_str = ';'.join(bc_wall_list)
     tixi.updateTextElement(bc_wall_xpath,bc_wall_str)
 
     # Fixed CL parameters
     fixed_cl_xpath = su2_xpath + '/fixedCL'
-    tixi, fixed_cl = get_value_or_default(tixi, fixed_cl_xpath,'NO')
+    fixed_cl = get_value_or_default(tixi, fixed_cl_xpath,'NO')
     target_cl_xpath = su2_xpath + '/targetCL'
-    tixi, target_cl = get_value_or_default(tixi, target_cl_xpath,1.0)
+    target_cl = get_value_or_default(tixi, target_cl_xpath,1.0)
 
     if fixed_cl == 'NO':
+        print('NO -----------------------')
         active_aeroMap_xpath = su2_xpath + '/aeroMapUID'
-        apm_xpath = get_apm_xpath(tixi,active_aeroMap_xpath)
+        aeromap_uid = get_value(tixi,active_aeroMap_xpath)
 
         # Get parameters of the aeroMap (alt,ma,aoa,aos)
-        Param = get_apm(tixi,apm_xpath)
+        Param = get_aeromap(tixi,aeromap_uid)
         param_count = Param.get_count()
 
         if param_count >= 1:
@@ -186,27 +192,40 @@ def generate_config_case(cpacs_path, cpacs_out_path, su2_mesh_path):
             raise ValueError('No parametre have been found in the aeroMap!')
 
     else: # if fixed_cl == 'YES':
+        print('YES -----------------------')
         range_xpath = '/cpacs/toolspecific/CEASIOMpy/ranges'
 
         # Parameters fixed CL calulation
         param_count = 1
-        aoa_list = [0.0] # Will not be used
+
+        # These parameters will not be used
+        aoa_list = [0.0]
         aos_list = [0.0]
 
         cruise_mach_xpath= range_xpath + '/cruiseMach'
-        tixi, mach = get_value_or_default(tixi,cruise_mach_xpath,0.78)
+        mach = get_value_or_default(tixi,cruise_mach_xpath,0.78)
         mach_list = [mach]
         cruise_alt_xpath= range_xpath + '/cruiseAltitude'
-        tixi, alt = get_value_or_default(tixi,cruise_alt_xpath,12000)
+        alt = get_value_or_default(tixi,cruise_alt_xpath,12000)
         alt_list = [alt]
 
-        # Create an aeroMap to store param and results coefficient
+        aeromap_uid = 'aeroMap_fixedCL_SU2'
+        description = 'AeroMap created for SU2 fixed CL value of: ' + str(target_cl)
+        create_empty_aeromap(tixi, aeromap_uid, description)
+        Parameters = AeroCoefficient()
+        Parameters.alt = alt_list
+        Parameters.mach = mach_list
+        Parameters.aoa = aoa_list
+        Parameters.aos = aos_list
+        save_parameters(tixi,aeromap_uid,Parameters)
+        tixi.updateTextElement(su2_xpath+ '/aeroMapUID',aeromap_uid)
+
 
 
     # Save the location of the config files in the CPACS file
     config_path = MODULE_DIR + '/ToolOutput'
     config_path_xpath = su2_xpath + '/configPath'
-    tixi = create_branch(tixi,config_path_xpath)
+    create_branch(tixi,config_path_xpath)
     tixi.updateTextElement(config_path_xpath,config_path)
 
     close_tixi(tixi,cpacs_out_path)

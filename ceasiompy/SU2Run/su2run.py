@@ -14,7 +14,6 @@ Python version: >=3.6
 TODO:
 
     * Add possibility of using SSH
-    * Save all results in CPACS output file (AeroMap)
     * Change su2 log file (for each case and wetted_area)
     * Add checks on the code
     * Create test functions
@@ -35,7 +34,7 @@ from shutil import ignore_patterns
 from ceasiompy.utils.ceasiomlogger import get_logger
 from ceasiompy.utils.cpacsfunctions import open_tixi, close_tixi, \
                                            create_branch, get_value
-from ceasiompy.utils.apmfunctions import save_aero_coef, get_apm_xpath, AeroCoefficient
+from ceasiompy.utils.apmfunctions import save_coefficients, get_aeromap, AeroCoefficient, check_aeromap
 
 log = get_logger(__file__.split('.')[0])
 
@@ -87,9 +86,9 @@ def save_timestamp(tixi, xpath):
     if end_time == None:
         log.warning("SU2 End time has not been found in the logfile!")
 
-    tixi = create_branch(tixi,xpath+'/startTime')
+    create_branch(tixi,xpath+'/startTime')
     tixi.updateTextElement(xpath+'/startTime',start_time)
-    tixit = create_branch(tixi,xpath+'/endTime')
+    create_branch(tixi,xpath+'/endTime')
     tixi.updateTextElement(xpath+'/endTime',end_time)
 
     return tixi
@@ -240,7 +239,6 @@ def run_SU2(mesh_path, config_path):
     os.chdir(MODULE_DIR)
 
 
-
 def get_su2_results(cpacs_path,cpacs_out_path):
     """ Function to write SU2 results in a CPACS file.
 
@@ -257,12 +255,12 @@ def get_su2_results(cpacs_path,cpacs_out_path):
 
     tixi = open_tixi(cpacs_path)
 
-    tixi = save_timestamp(tixi,SU2_XPATH)
+    save_timestamp(tixi,SU2_XPATH)
 
     # Get and save Wetted area
     wetted_area = get_wetted_area()
     wetted_area_xpath = '/cpacs/toolspecific/CEASIOMpy/geometry/analysis/wettedArea'
-    tixi = create_branch(tixi, wetted_area_xpath)
+    create_branch(tixi, wetted_area_xpath)
     tixi.updateDoubleElement(wetted_area_xpath,wetted_area,'%g')
 
     # Get and save CL/CD ratio
@@ -270,15 +268,17 @@ def get_su2_results(cpacs_path,cpacs_out_path):
     # force_path = MODULE_DIR + '/ToolOutput/forces_breakdown.dat' # TODO: global ?
     # cl_cd = get_efficiency(force_path)
     # lDRatio_xpath = '/cpacs/toolspecific/CEASIOMpy/ranges/lDRatio' # TODO: probalby change xpath and name
-    # tixi = create_branch(tixi, lDRatio_xpath)
+    # create_branch(tixi, lDRatio_xpath)
     # tixi.updateDoubleElement(lDRatio_xpath,cl_cd,'%g')
 
     # Save aeroPerformanceMap
-    active_aeroMap_xpath = SU2_XPATH + '/aeroMapUID'
-    apm_xpath = get_apm_xpath(tixi,active_aeroMap_xpath)
+    su2_aeromap_xpath = SU2_XPATH + '/aeroMapUID'
+    aeromap_uid = get_value(tixi,su2_aeromap_xpath)
 
     # Create an oject to store the aerodynamic coefficients
-    Coef = AeroCoefficient()
+    # Coef = AeroCoefficient()
+    check_aeromap(tixi,aeromap_uid)
+    Coef = get_aeromap(tixi, aeromap_uid)
 
     os.chdir(TMP_DIR)
     config_dir_list = os.listdir(TMP_DIR)
@@ -311,9 +311,8 @@ def get_su2_results(cpacs_path,cpacs_out_path):
 
             os.chdir(TMP_DIR)
 
-
     # Save object Coef in the CPACS file
-    tixi = save_aero_coef(tixi,apm_xpath,Coef)
+    save_coefficients(tixi,aeromap_uid,Coef)
 
     close_tixi(tixi,cpacs_out_path)
 
@@ -338,9 +337,17 @@ if __name__ == '__main__':
     config_path_xpath = SU2_XPATH + '/configPath'
     config_path = get_value(tixi,config_path_xpath)
 
-    run_SU2(mesh_path, config_path)
+    # use -r argument to skip run_SU2
+    skip_su2 = False
+    if len(sys.argv)>1:
+       if sys.argv[1] == '-r':
+           skip_su2 = True
+
+    if not skip_su2:
+        run_SU2(mesh_path, config_path)
 
     get_su2_results(cpacs_path,cpacs_out_path)
+
 
 
     log.info('----- End of ' + os.path.basename(__file__) + ' -----')

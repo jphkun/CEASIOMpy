@@ -18,10 +18,11 @@ Range main module for preliminary design on conventional aircraft, it evaluates:
     ToolInput folder after copying it into the ToolOutput
     folder as ToolOutput.xml
 
-| Works with Python 2.7/3.6
+Python version: >=3.6
+
 | Author : Stefano Piccini
 | Date of creation: 2018-09-27
-| Last modifiction: 2019-08-08 (AJ)
+| Last modifiction: 2019-09-04 (AJ)
 """
 
 
@@ -41,7 +42,6 @@ from ceasiompy.Range.func.RangeEstimation.breguetrange import breguet_cruise_ran
 from ceasiompy.Range.func.AoutFunc import outputrangegen
 from ceasiompy.Range.func.AoutFunc import cpacsrangeupdate
 from ceasiompy.Range.func.AinFunc import getdatafromcpacs
-from ceasiompy.utils import copyxmlfile
 
 from ceasiompy.utils.ceasiomlogger import get_logger
 from ceasiompy.utils.cpacsfunctions import aircraft_name
@@ -90,10 +90,12 @@ if __name__ == '__main__':
         os.makedirs('ToolOutput')
 
     if os.path.exists(PATH1):
-        out_xml = copyxmlfile.copy_xml(PATH1, 'user_tooloutput.xml')
+        out_xml = 'ToolOutput/user_tooloutput.xml'
+        shutil.copyfile(PATH1, './' + out_xml)
         #os.remove(PATH1)
     elif os.path.exists(PATH2):
-        out_xml = copyxmlfile.copy_xml(PATH2, 'ToolOutput.xml')
+        out_xml = 'ToolOutput/ToolOutput.xml'
+        shutil.copyfile(PATH2, './' + out_xml)
         #os.remove(PATH2)
     else:
         raise Exception ('Error no ToolInput.xml  or user_toolinput file'\
