@@ -3,16 +3,57 @@
 
 from ceasiompy.utils.moduleinterfaces import CPACSInOut, CEASIOM_XPATH
 
+SKINFRICTION_PATH = CEASIOM_XPATH + '/aerodynamics/skinFriction'
+
+# ===== RCE =====
+
+RCE = {
+    "name": "SkinFriction",
+    "description": "Calculate skin friction drag coefficent",
+    "exec": "pwd\npython skinfriction.py",
+    "author": "Aidan Jungo",
+    "email": "aidan.jungo@cfse.ch",
+}
+
+
 cpacs_inout = CPACSInOut()
 
 # ===== Input =====
 
 cpacs_inout.add_input(
+    var_name='',
+    var_type=list,
+    default_value=None,
+    unit=None,
+    descr='To which aeroMap the skin priction coef shoud be added',
+    cpacs_path=SKINFRICTION_PATH + '/aeroMapToCalculate',
+    gui=True,
+    gui_name='AeroMap name',
+    gui_group=None,
+)
+
+cpacs_inout.add_input(
     var_name='wetted_area',
+    var_type=float,
     default_value=None,
     unit='m^2',
     descr='Wetted area of the aircraft (calculated by SU2)',
     cpacs_path=CEASIOM_XPATH + '/geometry/analysis/wettedArea',
+    gui=True,
+    gui_name='Wetter Area',
+    gui_group=None,
+)
+
+cpacs_inout.add_input(
+    var_name='',
+    var_type=bool,
+    default_value=False,
+    unit=None,
+    descr='Delete orignal aeroMap once skin friction coefficient has been added',
+    cpacs_path=SKINFRICTION_PATH + '/deleteOriginal',
+    gui=True,
+    gui_name='Delete Orignal',
+    gui_group=None,
 )
 
 cpacs_inout.add_input(
@@ -56,13 +97,3 @@ cpacs_inout.add_output(
     descr='Wing span of the main (largest) wing',
     cpacs_path=CEASIOM_XPATH + '/geometry/analysis/wingSpan',
 )
-
-# ===== RCE =====
-
-RCE = {
-    "name": "SkinFriction",
-    "description": "Calculate skin friction drag coefficent",
-    "exec": "pwd\npython skinfriction.py",
-    "author": "Aidan Jungo",
-    "email": "aidan.jungo@cfse.ch",
-}

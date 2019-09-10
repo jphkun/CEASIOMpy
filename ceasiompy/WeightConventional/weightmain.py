@@ -48,10 +48,11 @@ Output:
 
     The code deletes the ToolOutput folder and recreates it at the start of each run.
 
-| Works with Python 2.7/3.6
+Python version: >=3.6
+
 | Author : Stefano Piccini
 | Date of creation: 2018-09-27
-| Last modifiction: 2019-08-08 (AJ)
+| Last modifiction: 2019-09-04 (AJ)
 """
 
 #=============================================================================
@@ -76,7 +77,6 @@ from ceasiompy.WeightConventional.func.AoutFunc import createtmpcpacs
 from ceasiompy.WeightConventional.func.AinFunc import getinput
 
 from ceasiompy.utils.ceasiomlogger import get_logger
-from ceasiompy.utils import copyxmlfile
 from ceasiompy.utils.cpacsfunctions import aircraft_name
 from ceasiompy.utils.WB.ConvGeometry import geometry
 
@@ -155,7 +155,8 @@ if __name__ == '__main__':
 
         name = aircraft_name(cpacs_in)
 
-        out_xml = copyxmlfile.copy_xml(cpacs_in, 'ToolOutput.xml')
+        out_xml = 'ToolOutput/ToolOutput.xml'
+        shutil.copyfile(cpacs_in, './' + out_xml)
         newpath = 'ToolOutput/' + name
         if not os.path.exists(newpath):
             os.makedirs(newpath)

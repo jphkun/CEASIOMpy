@@ -15,10 +15,11 @@ WARNING: The code deletes the ToolOutput folder and recreates
          folder after copying it into the ToolOutput folder
          as ToolOutput.xml
 
-| Works with Python 2.7/3.6
+Python version: >=3.6
+
 | Author : Stefano Piccini
 | Date of creation: 2018-09-27
-| Last modifiction: 2019-08-08 (AJ)
+| Last modifiction: 2019-09-04 (AJ)
 """
 
 #=============================================================================
@@ -41,7 +42,6 @@ from ceasiompy.BalanceConventional.func.AoutFunc import cpacsbalanceupdate
 from ceasiompy.BalanceConventional.func.AinFunc import getdatafromcpacs
 
 from ceasiompy.utils.ceasiomlogger import get_logger
-from ceasiompy.utils import copyxmlfile
 from ceasiompy.utils.cpacsfunctions import aircraft_name
 from ceasiompy.utils.WB.ConvGeometry import geometry
 
@@ -114,7 +114,8 @@ if __name__ == '__main__':
         log.warning('with cpacs file as input')
         raise Exception('Program ended')
     elif os.path.exists(PATH2):
-        out_xml = copyxmlfile.copy_xml(PATH2, 'ToolOutput.xml')
+        out_xml = 'ToolOutput/ToolOutput.xml'
+        shutil.copyfile(PATH2, './' + out_xml)
         #os.remove(PATH2)
     else:
         raise Exception ('Error no ToolInput.xml  or user_toolinput file'\
