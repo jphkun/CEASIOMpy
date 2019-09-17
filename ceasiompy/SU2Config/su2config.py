@@ -24,8 +24,6 @@ TODO:
 #==============================================================================
 
 import os
-import sys
-import math
 import shutil
 
 from ceasiompy.utils.ceasiomlogger import get_logger
@@ -40,7 +38,6 @@ from ceasiompy.utils.apmfunctions import AeroCoefficient, get_aeromap_uid_list,\
 
 from ceasiompy.utils.standardatmosphere import get_atmosphere
 from ceasiompy.utils.moduleinterfaces import check_cpacs_input_requirements
-from ceasiompy.SU2Config.__specs__ import cpacs_inout
 
 log = get_logger(__file__.split('.')[0])
 
@@ -175,7 +172,6 @@ def generate_config_case(cpacs_path, cpacs_out_path, su2_mesh_path):
     target_cl = get_value_or_default(tixi, target_cl_xpath,1.0)
 
     if fixed_cl == 'NO':
-        print('NO -----------------------')
         active_aeroMap_xpath = su2_xpath + '/aeroMapUID'
         aeromap_uid = get_value(tixi,active_aeroMap_xpath)
 
@@ -192,7 +188,6 @@ def generate_config_case(cpacs_path, cpacs_out_path, su2_mesh_path):
             raise ValueError('No parametre have been found in the aeroMap!')
 
     else: # if fixed_cl == 'YES':
-        print('YES -----------------------')
         range_xpath = '/cpacs/toolspecific/CEASIOMpy/ranges'
 
         # Parameters fixed CL calulation
@@ -341,7 +336,7 @@ if __name__ == '__main__':
     cpacs_out_path = MODULE_DIR + '/ToolOutput/ToolOutput.xml'
     su2_mesh_path = MODULE_DIR + '/ToolInput/ToolInput.su2'
 
-    check_cpacs_input_requirements(cpacs_path, cpacs_inout, __file__)
+    check_cpacs_input_requirements(cpacs_path)
 
     generate_config_case(cpacs_path,cpacs_out_path,su2_mesh_path)
 
