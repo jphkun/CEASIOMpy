@@ -12,14 +12,26 @@ XPATH_PYTORNADO = '/cpacs/toolspecific/pytornado'
 #===== Input =====
 
 cpacs_inout.add_input(
+    var_name='delete_old_wkdirs',
+    var_type=bool,
+    default_value=False,
+    unit=None,
+    descr="Delete old PyTornado working directories (if existent)",
+    cpacs_path=XPATH_PYTORNADO + '/deleteOldWKDIRs',
+    gui=True,
+    gui_name='Delete',
+    gui_group='Delete old working directories',
+)
+
+cpacs_inout.add_input(
     var_name='',
-    var_type=str,
+    var_type=list,
     default_value=None,
     unit=None,
     descr="Name of the aero map to evaluate",
     cpacs_path=XPATH_PYTORNADO + '/aeroMapUID',
     gui=True,
-    gui_name='Aero map name',
+    gui_name='__AEROMAP_SELECTION',
     gui_group=None,
 )
 
@@ -57,11 +69,11 @@ for plot_name in ['lattice', 'geometry', 'results', 'matrix_downwash']:
             var_type=bool,
             default_value=False,
             unit=None,
-            descr=f"{action.capitalize()} a {plot_name} plot (program will pause to show)",
+            descr=f"{action.capitalize()} a {plot_name.replace('_', ' ')} plot (program will pause to show)",
             cpacs_path=XPATH_PYTORNADO + f'/plot/{plot_name}/{action}',
             gui=True,
             gui_name=f'{action.capitalize()} plot',
-            gui_group=f'{plot_name.capitalize()} plot',
+            gui_group=f"{plot_name.capitalize().replace('_', ' ')} plot",
         )
 
     # TODO: add optional settings

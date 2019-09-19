@@ -22,7 +22,7 @@ Python version: >=3.6
 
 | Author: Aaron Dettmann
 | Creation: 2019-08-12
-| Last modifiction: 2019-09-06
+| Last modification: 2019-09-13
 """
 
 # TODO
@@ -36,12 +36,14 @@ import json
 import os
 import re
 import shutil
+from datetime import datetime
+from random import randint
+from glob import glob
 
 import xmltodict as xml
 
 from ceasiompy.utils.ceasiomlogger import get_logger
 from ceasiompy.utils.moduleinterfaces import check_cpacs_input_requirements
-from ceasiompy.ModuleTemplate.__specs__ import cpacs_inout
 
 log = get_logger(__file__.split('.')[0])
 dump_pretty_json = partial(json.dump, indent=4, separators=(',', ': '))
@@ -49,13 +51,7 @@ dump_pretty_json = partial(json.dump, indent=4, separators=(',', ': '))
 REGEX_INT = re.compile(r'^[-+]?[0-9]+$')
 REGEX_FLOAT = re.compile(r'^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$')
 
-# ===== Paths =====
 DIR_MODULE = os.path.dirname(os.path.abspath(__file__))
-DIR_PYT_WKDIR = os.path.join(DIR_MODULE, 'wkdir')
-DIR_PYT_AIRCRAFT = os.path.join(DIR_PYT_WKDIR, 'aircraft')
-DIR_PYT_SETTINGS = os.path.join(DIR_PYT_WKDIR, 'settings')
-FILE_PYT_AIRCRAFT = os.path.join(DIR_PYT_AIRCRAFT, 'ToolInput.xml')
-FILE_PYT_SETTINGS = os.path.join(DIR_PYT_SETTINGS, 'cpacs_run.json')
 
 
 def import_pytornado(module_name):
@@ -120,30 +116,49 @@ def get_pytornado_settings(cpacs_in_path):
     settings['plot']['results']['save'] = False
 
     # ----- Try to read PyTornado settings from CPACS -----
+    cpacs_settings = get_pytornado_settings_from_CPACS(cpacs_in_path)
+    if cpacs_settings is not None:
+        update_dict(settings, cpacs_settings)
+        parse_pytornado_settings_dict(settings)
+    return settings
+
+
+def get_pytornado_settings_from_CPACS(cpacs_in_path):
+    """ Try to read PyTornado settings from CPACS
+
+    Note:
+        * Returns None if PyTornado settings not found in CPACS
+
+    Args:
+        cpacs_in_path (str): Path to CPACS file
+
+    Returns:
+        cpacs_settings (dict): PyTornado settings dictionary read from CPACS
+    """
+
     with open(cpacs_in_path, "r") as fp:
         cpacs_as_dict = xml.parse(fp.read())
-    # Try to get the PyTornado settings
     cpacs_settings = cpacs_as_dict.get('cpacs', {}).get('toolspecific', {}).get('pytornado', None)
-    if cpacs_settings is not None:
+    parse_pytornado_settings_dict(cpacs_settings)
+    return cpacs_settings
 
-        def update_settings_from_cpacs(to_update, other_dict, key):
-            """Update PyTornado settings dict with CPACS settings"""
-            value = other_dict.get(key, None)
-            if value is not None:
-                if isinstance(value, dict):
-                    to_update = to_update[key].update(value)
-                else:
-                    to_update[key] = value
 
-        # Values that we read from CPACS
-        update_settings_from_cpacs(settings, cpacs_settings, 'plot')
-        update_settings_from_cpacs(settings, cpacs_settings, 'save_results')
-        update_settings_from_cpacs(settings, cpacs_settings, 'vlm_autopanels_c')
-        update_settings_from_cpacs(settings, cpacs_settings, 'vlm_autopanels_s')
+def update_dict(to_update, other_dict):
+    """Update 'to_update' dict with 'other_dict' recursively
 
-        parse_pytornado_settings_dict(settings)
+    Note:
+        * Entries from 'other_dict' are only updated if they exist in 'to_update'
 
-    return settings
+    Args:
+        to_update (dict): Dictionary which is to be updated
+        other_dict (dict): Dictionary with new values
+    """
+
+    for key, value in other_dict.items():
+        if isinstance(value, dict):
+            update_dict(to_update.get(key, {}), value)
+        elif to_update.get(key, None) is not None:
+            to_update[key] = value
 
 
 def parse_pytornado_settings_dict(dictionary):
@@ -185,41 +200,56 @@ def parse_pytornado_settings_dict(dictionary):
         # -----------
         # Optional settings
         # TODO: improve
-        if k == 'opt':
-            dictionary[k] = (v,)
+        # if k == 'opt':
+        #     dictionary[k] = (v,)
         # -----------
 
 
 def main():
     log.info("Running PyTornado...")
 
-    # ===== Import PyTornado =====
-    pytornado = import_pytornado('pytornado.stdfun.run')
-
-    # ===== Clean up from previous analyses =====
-    shutil.rmtree(DIR_PYT_WKDIR, ignore_errors=True)
-
-    # ===== Make directories =====
-    Path(DIR_PYT_WKDIR).mkdir(parents=True, exist_ok=True)
-    Path(DIR_PYT_AIRCRAFT).mkdir(parents=True, exist_ok=True)
-    Path(DIR_PYT_SETTINGS).mkdir(parents=True, exist_ok=True)
-
-    # ===== Setup =====
-    # check_cpacs_input_requirements(cpacs_path, cpacs_inout, __file__)
+    # ===== CPACS inout and output paths =====
     cpacs_in_path = DIR_MODULE + '/ToolInput/ToolInput.xml'
     cpacs_out_path = DIR_MODULE + '/ToolOutput/ToolOutput.xml'
-    shutil.copy(src=cpacs_in_path, dst=FILE_PYT_AIRCRAFT)
+
+    # ===== Delete old working directories =====
+    settings_from_CPACS = get_pytornado_settings_from_CPACS(cpacs_in_path)
+    if settings_from_CPACS is not None:
+        if settings_from_CPACS.get('deleteOldWKDIRs', False):
+            wkdirs = glob(os.path.join(DIR_MODULE, 'wkdir_*'))
+            for wkdir in wkdirs:
+                shutil.rmtree(wkdir, ignore_errors=True)
+
+    # ===== Paths =====
+    dir_pyt_wkdir = os.path.join(
+        DIR_MODULE,
+        f"wkdir_{datetime.strftime(datetime.now(), '%F_%H%M%S')}_{randint(1000, 9999)}"
+    )
+    dir_pyt_aircraft = os.path.join(dir_pyt_wkdir, 'aircraft')
+    dir_pyt_settings = os.path.join(dir_pyt_wkdir, 'settings')
+    file_pyt_aircraft = os.path.join(dir_pyt_aircraft, 'ToolInput.xml')
+    file_pyt_settings = os.path.join(dir_pyt_settings, 'cpacs_run.json')
+
+    # ===== Make directories =====
+    Path(dir_pyt_wkdir).mkdir(parents=True, exist_ok=True)
+    Path(dir_pyt_aircraft).mkdir(parents=True, exist_ok=True)
+    Path(dir_pyt_settings).mkdir(parents=True, exist_ok=True)
+
+    # ===== Setup =====
+    shutil.copy(src=cpacs_in_path, dst=file_pyt_aircraft)
+    check_cpacs_input_requirements(cpacs_in_path)
 
     # ===== Get PyTornado settings =====
     cpacs_settings = get_pytornado_settings(cpacs_in_path)
-    with open(FILE_PYT_SETTINGS, "w") as fp:
+    with open(file_pyt_settings, "w") as fp:
         dump_pretty_json(cpacs_settings, fp)
 
     # ===== PyTornado analysis =====
-    pytornado.standard_run(args=pytornado.StdRunArgs(run=FILE_PYT_SETTINGS, verbose=True))
+    pytornado = import_pytornado('pytornado.stdfun.run')
+    pytornado.standard_run(args=pytornado.StdRunArgs(run=file_pyt_settings, verbose=True))
 
     # ===== Clean up =====
-    shutil.copy(src=FILE_PYT_AIRCRAFT, dst=cpacs_out_path)
+    shutil.copy(src=file_pyt_aircraft, dst=cpacs_out_path)
     log.info("PyTornado analysis completed")
 
 

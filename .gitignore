@@ -20,6 +20,7 @@
 
 # Ignore ToolInput and ToolOutput
 ToolInput.xml
+ToolInput*.xml
 ToolInput.smx
 ToolInput.cfg
 
@@ -41,6 +42,9 @@ forces_breakdown.dat
 !/ceasiompy/ModuleTemplate/ToolInput/ToolInput.xml
 !/test/TestSU2Config/ToolInput/NoMarkerMesh.su2
 !/test/TestSU2Config/ToolInput/SimpleMesh.su2
+
+# Mac files
+*.DS_Store
 
 # Vim temporary files
 *.swp
