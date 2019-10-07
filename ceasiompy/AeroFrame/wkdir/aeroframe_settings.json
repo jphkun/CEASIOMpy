@@ -6,9 +6,8 @@
         }
     },
     "cfd_model": {
-        "wrapper": "aeroframe._wrappers.cfd.pytornado",
+        "wrapper": "ceasiompy.AeroFrame.wrappers.cfd.su2",
         "exec_settings": {
-          "run": "cfd/settings/WindTunnelModel.json"
         }
     },
     "structure_model": {

@@ -67,7 +67,8 @@ class Wrapper(AeroWrapper):
         for row in su2_load_array:
             row = tuple(row)
             xyz_fxyz = np.concatenate((row[1:7], [0, 0, 0]))
-            load_fields[str(row[-1])].append(xyz_fxyz)
+            # Strip leading/trailing white space from component UIDs
+            load_fields[str(row[-1]).strip()].append(xyz_fxyz)
 
         for component_uid, value in load_fields.items():
             value = np.array(value, dtype=float)
@@ -88,7 +89,7 @@ class Wrapper(AeroWrapper):
 
         # TODO: make work for multiple wings
         orig_mesh = self.undeformed_mesh['Wing']
-        def_field = self.shared.structure.def_fields['Wing']
+        def_field = def_fields['Wing']
 
         def_mesh = get_deformed_mesh(orig_mesh, def_field)
 
