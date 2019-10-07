@@ -1,1 +1,5 @@
 log.txt
+
+# PyTornado files
+wkdir/cfd/_*
+wkdir/cfd/deformation/
