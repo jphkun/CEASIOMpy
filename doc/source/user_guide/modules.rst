@@ -73,4 +73,6 @@ Modules
 
    modules/SettingsGUI/index
    modules/Optimisation/index
+   modules/SMTrain/index
+   modules/SMUse/index
    modules/ModuleTemplate/index

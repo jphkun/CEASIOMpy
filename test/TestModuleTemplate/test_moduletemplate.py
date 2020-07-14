@@ -9,7 +9,7 @@ Python version: >=3.6
 
 | Author : Aidan Jungo
 | Creation: 2019-08-14
-| Last modifiction: 2019-09-27
+| Last modifiction: 2020-07-08
 """
 
 #==============================================================================
@@ -22,9 +22,10 @@ import sys
 import pytest
 from pytest import approx
 
-from ceasiompy.utils.ceasiomlogger import get_logger
-from ceasiompy.utils.cpacsfunctions import open_tixi, open_tigl, close_tixi, get_value
 from ceasiompy.ModuleTemplate.moduletemplate import MyClass, sum_funcion, get_fuselage_scaling
+from ceasiompy.ModuleTemplate.func.subfunc import my_subfunc
+
+from ceasiompy.utils.ceasiomlogger import get_logger
 
 log = get_logger(__file__.split('.')[0])
 
@@ -75,6 +76,17 @@ def test_get_fuselage_scaling():
     assert x == approx(1)
     assert y == approx(0.5)
     assert z == approx(0.5)
+
+
+def test_subfunc():
+    """Test subfunction 'my_subfunc' """
+
+    a = 'a'
+    b = 'b'
+
+    res = my_subfunc(a,b)
+
+    assert res == 'a and b'
 
 
 #==============================================================================

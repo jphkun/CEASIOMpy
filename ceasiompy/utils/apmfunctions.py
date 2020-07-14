@@ -10,7 +10,7 @@ CPACS version: 3.1
 
 | Author : Aidan Jungo
 | Creation: 2019-08-15
-| Last modifiction: 2020-02-17
+| Last modifiction: 2020-07-01
 
 TODO:
 
@@ -29,16 +29,17 @@ import sys
 import time
 import math
 
+import numpy as np
 import pandas as pd
 
 import ceasiompy.utils.cpacsfunctions as cpsf
+import ceasiompy.utils.ceasiompyfunctions as ceaf
 
 from ceasiompy.utils.ceasiomlogger import get_logger
 
 log = get_logger(__file__.split('.')[0])
 
 AEROPERFORMANCE_XPATH = '/cpacs/vehicles/aircraft/model/analyses/aeroPerformance'
-
 #==============================================================================
 #   CLASSES
 #==============================================================================
@@ -157,7 +158,7 @@ class AeroCoefficient():
 
         #self.increment_map = IncrementMap()
 
-    def add_param_point(alt,mach,aoa,aos):
+    def add_param_point(self,alt,mach,aoa,aos):
 
         self.alt.append(alt)
         self.mach.append(mach)
@@ -246,16 +247,7 @@ class AeroCoefficient():
         """ sort the data in AeroCoefficient object by the 'sort_key' """
 
         # Create a dictionary from data
-        dict = {'alt':self.alt,
-                'mach': self.mach,
-                'aoa':self.aoa,
-                'aos':self.aos,
-                'cl':self.cl,
-                'cd':self.cd,
-                'cs':self.cs,
-                'cml':self.cml,
-                'cmd':self.cmd,
-                'cms':self.cms}
+        dict = self.to_dict(self)
 
         # Create a dataframe from dictionary
         df = pd.DataFrame(dict)
@@ -276,10 +268,25 @@ class AeroCoefficient():
         self.cmd = df_sorted['cmd'].tolist()
         self.cms = df_sorted['cms'].tolist()
 
+    def to_dict(self):
+        dct = {'alt':self.alt,
+        'mach': self.mach,
+        'aoa':self.aoa,
+        'aos':self.aos,
+        'cl':self.cl,
+        'cd':self.cd,
+        'cs':self.cs,
+        'cml':self.cml,
+        'cmd':self.cmd,
+        'cms':self.cms}
+        return dct
 
     def print_coef_list(self):
 
         case_count = self.get_count()
+
+        print('AeroMap name: ...')
+        print('AeroMap description: ...')
 
         print('======================================================================================')
         print('#\talt\tmach\taoa\taos\tcl\tcd\tcs\tcml\tcmd\tcms')
@@ -348,7 +355,7 @@ def create_empty_aeromap(tixi, aeromap_uid, description = ''):
     """ Create an empty aeroPerformanceMap
 
     Function 'create_empty_apm' will add all the required nodes for a new
-    aeroPerformanceMap, no value will be sored but function like '????' and
+    aeroPerformanceMap, no value will be stored but function like 'create_aeromap' and
     '???' could be used to fill it then.
 
     Args:
@@ -428,6 +435,8 @@ def check_aeromap(tixi, aeromap_uid):
         # Check AeroPerformanceMap, parameters and coefficients nodes
         apm_xpath = aeromap_xpath + '/aeroPerformanceMap'
         cpsf.create_branch(tixi,apm_xpath)
+
+        #TODO: Replace by a for loop
         cpsf.create_branch(tixi,apm_xpath+'/altitude')
         cpsf.create_branch(tixi,apm_xpath+'/machNumber')
         cpsf.create_branch(tixi,apm_xpath+'/angleOfAttack')
@@ -934,16 +943,7 @@ def aeromap_to_csv(tixi, aeromap_uid, csv_path):
     AeroCoefficient.complete_with_zeros()
 
     # Create a dictionary from the AeroCoefficient object
-    dict = {'alt':AeroCoefficient.alt,
-            'mach': AeroCoefficient.mach,
-            'aoa':AeroCoefficient.aoa,
-            'aos':AeroCoefficient.aos,
-            'cl':AeroCoefficient.cl,
-            'cd':AeroCoefficient.cd,
-            'cs':AeroCoefficient.cs,
-            'cml':AeroCoefficient.cml,
-            'cmd':AeroCoefficient.cmd,
-            'cms':AeroCoefficient.cms}
+    dict = AeroCoefficient.to_dict()
 
     # Create a DataFrame (pandas) from dictionary
     df = pd.DataFrame(dict)
@@ -973,6 +973,113 @@ def delete_aeromap(tixi,aeromap_uid):
 
     tixi.removeElement(aeroMap_xpath)
     log.info(aeromap_uid + ' has been removed from the CPACS file')
+
+
+def create_aeromap(tixi, name, bound_values):
+    """Create an aeromap
+
+    This function  will generate an aeromap either as a CSV file or in a CPACS file
+    depending on what is indicated.
+
+    Args:
+        tixi (Tixi3 handle): If no handle is given, a CSV file will be generated instead.
+        name (str): Name of the aeromap.
+        bounds (lst): List of the parameter entries as strings
+
+    """
+
+    bounds = []
+    allowed = [str(i) for i in range(0,10)]
+    allowed.extend([';','.','[',']','-'])
+    for param in bound_values:
+        for i in param:
+            if i not in allowed:
+                raise ValueError("""Not a valid entry : {}.
+                      Only following entries are accepted : {}""".format(i,allowed))
+
+        # Check for linspace declaration
+        if '[' in param or ']' in param:
+            log.info('Linspace generation')
+            param = param.replace('[','')
+            param = param.replace(']','')
+            param = param.split(';')
+            if len(param) != 3:
+               raise ValueError("""Not the right number of parameters
+                     (expected 3 as follows [start;step;stop])""")
+            bounds.append(np.arange(float(param[0]),
+                                    float(param[2]),
+                                    float(param[1])))
+        elif len(param) == 0:
+            raise ValueError("""Empty parameter, please enter a number""")
+        else:
+            param = param.split(';')
+            if '' in param:
+                param.remove('')
+            param = [float(i) for i in param]
+            bounds.append(np.array(param))
+
+    lengths = set([len(b) for b in bounds])
+
+    if len(lengths) != 1:
+        if len(lengths) == 2 and 1 in lengths:
+            for i ,b in enumerate(bounds):
+                if len(b) == 1:
+                    b = np.full((1,max(lengths)),b[0])
+                    bounds[i]=b[0].tolist()
+        else:
+            raise ValueError(""" Not the same number of element for each parameter
+                  (each parameter must have the same number of elements or one
+                   single value which will be repeated.)""")
+    bounds = np.array(bounds)
+
+    if name == '':
+        raise ValueError("""Empty name, please enter a name !""")
+    else:
+        desc = 'Auto-generated Aeromap'
+        create_empty_aeromap(tixi, name, description = desc)
+        Param = AeroCoefficient()
+        Param.alt = bounds[0,:]
+        Param.mach = bounds[1,:]
+        Param.aoa = bounds[2,:]
+        Param.aos = bounds[3,:]
+
+        save_parameters(tixi, name, Param)
+
+
+def get_current_aeromap_uid(tixi, module_list):
+    """Return uid of selected aeromap.
+
+    Check the modules that will be run in the optimisation routine to specify
+    the uID of the correct aeromap in the CPACS file.
+
+    Args:
+        module_list (lst): List of the modules that are run in the routine
+        tixi (tixi handle): Tixi handle of the CPACS file.
+
+    Returns:
+        uid (str) : Name of the aeromap that is used for the routine
+    """
+    uid = 'None'
+
+    for module in module_list:
+        if module == 'SU2Run':
+            log.info('Found SU2 analysis')
+            xpath = '/cpacs/toolspecific/CEASIOMpy/aerodynamics/su2/aeroMapUID'
+            uid = tixi.getTextElement(xpath)
+        elif module == 'PyTornado':
+            log.info('Found PyTornado analysis')
+            xpath = '/cpacs/toolspecific/pytornado/aeroMapUID'
+            uid = tixi.getTextElement(xpath)
+        elif module == 'SMUse':
+            log.info('Found a Surrogate model')
+            xpath = '/cpacs/toolspecific/CEASIOMpy/surrogateModelUse/aeroMapUID'
+
+    if 'SkinFriction' in module_list:
+        log.info('Found SkinFriction analysis')
+        uid = uid + '_SkinFriction'
+
+    return uid
+
 
 def my_test_func():
     # this is just a github test

@@ -9,13 +9,14 @@ Python version: >=3.6
 
 | Author: Aidan jungo
 | Creation: 2020-04-21
-| Last modifiction: 2020-05-20
+| Last modifiction: 2020-07-02
 
 TODO:
 
     * more options for optim ?
 
 """
+
 # ==============================================================================
 #   IMPORTS
 # ==============================================================================
@@ -33,7 +34,7 @@ import ceasiompy.utils.ceasiompyfunctions as ceaf
 import ceasiompy.utils.cpacsfunctions as cpsf
 import ceasiompy.utils.moduleinterfaces as mi
 
-from ceasiompy.Optimisation.optimisation import routine_setup
+from ceasiompy.Optimisation.optimisation import routine_launcher
 from ceasiompy.utils.ceasiomlogger import get_logger
 log = get_logger(__file__.split('.')[0])
 
@@ -82,7 +83,6 @@ class Tab(tk.Frame):
         self.modules_list.insert(0,'SettingsGUI')
 
         self.modules_list.remove('CPACSUpdater')
-        # self.modules_list.remove('Optimisation')
         self.modules_list.remove('WorkflowCreator')
         self.modules_list.remove('utils')
         try:
@@ -97,24 +97,19 @@ class Tab(tk.Frame):
         if name == 'Optim':
 
             label_optim = tk.Label(self, text='Optimisation method')
-            label_optim.grid(column=0, row=0, columnspan=1)
+            label_optim.grid(column=0, row=0, columnspan=1,pady=10)
 
             # The Combobox is directly use as the varaible
             optim_choice = ['None', 'DoE', 'Optim']
-            self.optim_choice_CB = ttk.Combobox(self, values=optim_choice)
-            self.optim_choice_CB['width'] = 4
+            self.optim_choice_CB = ttk.Combobox(self, values=optim_choice, width=15)
             self.optim_choice_CB.grid(column=4, row=row_pos)
             row_pos += 1
 
-            space_label = tk.Label(self, text=' ')
-            space_label.grid(column=0, row=row_pos, columnspan=5)
-            row_pos += 1
-
         # ListBox with all available modules
-        tk.Label(self, text='Available modules').grid(column=0, row=row_pos)
-        self.LB_modules = tk.Listbox(self, selectmode=tk.SINGLE)
+        tk.Label(self, text='Available modules').grid(column=0, row=row_pos, pady=5)
+        self.LB_modules = tk.Listbox(self, selectmode=tk.SINGLE, width=25, height=len(self.modules_list))
         item_count = len(self.modules_list)
-        self.LB_modules.grid(column=0, row=row_pos+1, columnspan=3, rowspan=15)
+        self.LB_modules.grid(column=0, row=row_pos+1, columnspan=3, rowspan=15, padx=10, pady=3)
         for item in self.modules_list:
             self.LB_modules.insert(tk.END, item)
 
@@ -130,8 +125,8 @@ class Tab(tk.Frame):
 
         # ListBox with all selected modules
         tk.Label(self, text='Selected modules').grid(column=5, row=row_pos)
-        self.LB_selected = tk.Listbox(self, selectmode=tk.SINGLE)
-        self.LB_selected.grid(column=5, row=row_pos+1, columnspan=3, rowspan=15)
+        self.LB_selected = tk.Listbox(self, selectmode=tk.SINGLE, width=25, height=len(self.modules_list))
+        self.LB_selected.grid(column=5, row=row_pos+1, columnspan=3, rowspan=15, padx=10, pady=3)
         for item in self.selected_list:
             self.LB_selected.insert(tk.END, item)
             row_pos += (item_count + 1)
@@ -200,23 +195,20 @@ class WorkFlowGUI(tk.Frame):
         space_label.grid(column=0, row=0)
 
         # Input CPACS file
-        self.label = tk.Label(self, text='Input CPACS file')
+        self.label = tk.Label(self, text='  Input CPACS file')
         self.label.grid(column=0, row=1)
 
         self.path_var = tk.StringVar()
         self.path_var.set(self.Options.cpacs_path)
-        value_entry = tk.Entry(self, textvariable=self.path_var)
+        value_entry = tk.Entry(self, textvariable=self.path_var, width= 45)
         value_entry.grid(column=1, row=1)
 
         self.browse_button = tk.Button(self, text="Browse", command=self._browse_file)
-        self.browse_button.grid(column=2, row=1)
-
-        space_label2 = tk.Label(self, text=' ')
-        space_label2.grid(column=0, row=2)
+        self.browse_button.grid(column=2, row=1, pady=5)
 
         # Notebook for tabs
         self.tabs = ttk.Notebook(self)
-        self.tabs.grid(column=0, row=3, columnspan=3)
+        self.tabs.grid(column=0, row=2, columnspan=3,padx=10,pady=10)
 
         self.TabPre = Tab(self, 'Pre')
         self.TabOptim = Tab(self, 'Optim')
@@ -228,12 +220,13 @@ class WorkFlowGUI(tk.Frame):
 
         # General buttons
         self.close_button = tk.Button(self, text='Save & Quit', command=self._save_quit)
-        self.close_button.grid(column=2, row=4)
+        self.close_button.grid(column=2, row=3)
 
 
     def _browse_file(self):
 
-        self.filename = filedialog.askopenfilename(initialdir = MODULE_DIR, title = "Select a CPACS file" )
+        cpacs_template_dir = os.path.join(MODULE_DIR,'..','..','test','CPACSfiles')
+        self.filename = filedialog.askopenfilename(initialdir = cpacs_template_dir, title = "Select a CPACS file" )
         self.path_var.set(self.filename)
 
     def _save_quit(self):
@@ -268,7 +261,7 @@ def create_wf_gui():
 
     root = tk.Tk()
     root.title('Workflow Creator')
-    root.geometry('520x600+400+100')
+    root.geometry('475x490+400+300')
     my_gui = WorkFlowGUI()
     my_gui.mainloop()
     disg = my_gui.Options
@@ -318,7 +311,6 @@ if __name__ == '__main__':
         Opt.optim_method = 'Optim' # DoE, Optim, None
         Opt.module_post = []
 
-
     # Copy ToolInput.xml in ToolInput dir if not already there
     cpacs_path = mi.get_toolinput_file_path(MODULE_NAME)
     if not Opt.cpacs_path == cpacs_path:
@@ -345,7 +337,7 @@ if __name__ == '__main__':
             wkf.copy_module_to_module('WorkflowCreator', 'in', 'Optimisation', 'in')
 
         if Opt.optim_method != 'None':
-            routine_setup(Opt.module_optim, Opt.optim_method, Opt.module_pre)
+            routine_launcher(Opt)
         else:
             log.warning('No optimization method has been selected!')
             log.warning('The modules will be run as a simple workflow')

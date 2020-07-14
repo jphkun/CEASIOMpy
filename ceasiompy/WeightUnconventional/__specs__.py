@@ -33,7 +33,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='ui.H_LIM_CABIN',
+    var_name='H_LIM_CABIN',
     var_type=float,
     default_value=2.3,
     unit='m',
@@ -45,7 +45,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='adui.PASS_PER_TOILET',
+    var_name='PASS_PER_TOILET',
     var_type=int,
     default_value=50,
     unit='[pax/toilet]',
@@ -57,7 +57,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='adui.VRT_THICK',
+    var_name='VRT_THICK',
     var_type=float,
     default_value=0.00014263,
     unit='m',
@@ -69,7 +69,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='adui.VRT_STR_DENSITY',
+    var_name='VRT_STR_DENSITY',
     var_type=float,
     default_value=2700.0,
     unit='kg/m^3',
@@ -81,7 +81,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='ui.PILOT_NB',
+    var_name='PILOT_NB',
     var_type=int,
     default_value=2,
     unit='-',
@@ -93,7 +93,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='adui.MASS_PILOT',
+    var_name='MASS_PILOT',
     var_type=float,
     default_value=102.0,
     unit='kg',
@@ -105,7 +105,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='adui.MASS_CABIN_CREW',
+    var_name='MASS_CABIN_CREW',
     var_type=float,
     default_value=68.0,
     unit='kg',
@@ -117,7 +117,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='adui.MASS_PASS',
+    var_name='MASS_PASS',
     var_type=float,
     default_value=105.0,
     unit='[kg]',
@@ -129,7 +129,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='adui.PASS_BASE_DENSITY',
+    var_name='PASS_BASE_DENSITY',
     var_type=float,
     default_value=1.66,
     unit='[pax/m^2]',
@@ -141,7 +141,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='adui.FUEL_DENSITY',
+    var_name='FUEL_DENSITY',
     var_type=float,
     default_value=800.0,
     unit='[kg/m^3]',
@@ -153,7 +153,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='adui.RES_FUEL_PERC',
+    var_name='RES_FUEL_PERC',
     var_type=float,
     default_value=0.06,
     unit='[-]',
@@ -165,7 +165,19 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='ui.MAX_PAYLOAD',
+    var_name='FUEL_ON_CABIN',
+    var_type=float,
+    default_value=0.0,
+    unit='[-]',
+    descr=' % of the free volume fuel allowed inside the central wing area, near the cabin for the blended wing body',
+    xpath=CEASIOM_XPATH + '/fuels/fuelOnCabin',
+    gui=True,
+    gui_name='Fuel % on cabin',
+    gui_group='Fuel',
+)
+
+cpacs_inout.add_input(
+    var_name='MAX_PAYLOAD',
     var_type=float,
     default_value=0.0,
     unit='[kg]',
@@ -177,7 +189,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='ui.MAX_FUEL_VOL',
+    var_name='MAX_FUEL_VOL',
     var_type=float,
     default_value=0.0,
     unit='[l]',
@@ -189,7 +201,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='ui.MASS_CARGO',
+    var_name='MASS_CARGO',
     var_type=float,
     default_value=0.0,
     unit='[kg]',
@@ -201,7 +213,7 @@ cpacs_inout.add_input(
 )
 
 cpacs_inout.add_input(
-    var_name='ed.TSFC_CRUISE',
+    var_name='TSFC_CRUISE',
     var_type=float,
     default_value=0.5,
     unit='[1/h]',
@@ -212,11 +224,9 @@ cpacs_inout.add_input(
     gui_group='Cruise',
 )
 
-# TODO: Missing some imput about engines
+# TODO: Missing engines inputs!!!
 
 # ----- Output -----
-
-# TODO: check if all input are there
 
 cpacs_inout.add_output(
     var_name='maximum_take_off_mass',
@@ -267,25 +277,17 @@ cpacs_inout.add_output(
 )
 
 cpacs_inout.add_output(
-    var_name='crew_mass',
-    default_value=None,
-    unit='[kg]',
-    descr='Crew members total mass',
-    xpath=CEASIOM_XPATH+'/weight/crew/crewMass/mass',
-)
-
-cpacs_inout.add_output(
     var_name='mass_cargo',
     default_value=None,
     unit='[kg]',
     descr='xtra payload mass in case of max fuel and total mass less than MTOM',
-    xpath=AIRCRAFT_XPATH+'/model/analyses/massBreakdown/mCargo/massDescription/massCargo',
+    xpath=AIRCRAFT_XPATH+'/model/analyses/massBreakdown/mCargo/massCargo',
 )
 
 cpacs_inout.add_output(
     var_name='pass_nb',
     default_value=None,
-    unit='[kg]',
+    unit='[-]',
     descr='Maximum number of passengers',
     xpath=CEASIOM_XPATH+'/weight/passengers/passNb',
 )
@@ -293,25 +295,9 @@ cpacs_inout.add_output(
 cpacs_inout.add_output(
     var_name='cabin_crew_nb',
     default_value=None,
-    unit='[kg]',
-    descr='Maximum number of cabin crew members',
-    xpath=CEASIOM_XPATH+'/weight/crew/crewMass/cabinCrewMemberNB',
-)
-
-cpacs_inout.add_output(
-    var_name='wing_area',
-    default_value=None,
-    unit='[m^2]',
-    descr='Wing area',
-    xpath=CEASIOM_XPATH+'/geometry/analyses/wingArea',
-)
-
-cpacs_inout.add_output(
-    var_name='fuse_length',
-    default_value=None,
-    unit='[m]',
-    descr='Fuselage length',
-    xpath=CEASIOM_XPATH+'/geometry/analyses/fuseLength',
+    unit='[-]',
+    descr='Number of cabin crew members',
+    xpath=CEASIOM_XPATH+'/weight/crew/cabinCrewMembers/cabinCrewMemberNb',
 )
 
 cpacs_inout.add_output(
