@@ -10,13 +10,13 @@ CPACS version: 3.1
 
 | Author : Aidan Jungo
 | Creation: 2019-08-15
-| Last modifiction: 2020-07-01
+| Last modifiction: 2020-07-16
 
 TODO:
 
     * Create test functions
     * Developp other functions
-    * Use Penda DataFrame instead of AeroCoefficient object? is it possible?
+    * Use Penda DataFrame instead of AeroCoefficient object?
     * implement "IncrementMap" for damping_der and control_surf
 """
 
@@ -40,6 +40,11 @@ from ceasiompy.utils.ceasiomlogger import get_logger
 log = get_logger(__file__.split('.')[0])
 
 AEROPERFORMANCE_XPATH = '/cpacs/vehicles/aircraft/model/analyses/aeroPerformance'
+
+COEF_LIST = ['cl','cd','cs','cml','cmd','cms']
+STATES = ['alt','mach','aoa','aos']
+XSTATES = ['altitude','machNumber','angleOfAttack','angleOfSideslip']
+
 #==============================================================================
 #   CLASSES
 #==============================================================================
@@ -269,10 +274,10 @@ class AeroCoefficient():
         self.cms = df_sorted['cms'].tolist()
 
     def to_dict(self):
-        dct = {'alt':self.alt,
-        'mach': self.mach,
-        'aoa':self.aoa,
-        'aos':self.aos,
+        dct = {'altitude':self.alt,
+        'machNumber': self.mach,
+        'angleOfAttack':self.aoa,
+        'angleOfSideslip':self.aos,
         'cl':self.cl,
         'cd':self.cd,
         'cs':self.cs,
@@ -321,7 +326,7 @@ class AeroCoefficient():
 def get_aeromap_uid_list(tixi):
     """ Get the list of all aeroMap UID.
 
-    Function 'get_aeromap_uid_list' looks for all aerMap in the CPACS file and
+    Function 'get_aeromap_uid_list' looks for all aeroMap in the CPACS file and
     create a list of their UID which is returned.
 
     Args:
@@ -978,8 +983,7 @@ def delete_aeromap(tixi,aeromap_uid):
 def create_aeromap(tixi, name, bound_values):
     """Create an aeromap
 
-    This function  will generate an aeromap either as a CSV file or in a CPACS file
-    depending on what is indicated.
+    This function  will generate an aeromap in a CPACS file with certain bonds.
 
     Args:
         tixi (Tixi3 handle): If no handle is given, a CSV file will be generated instead.
@@ -1044,13 +1048,39 @@ def create_aeromap(tixi, name, bound_values):
         Param.aos = bounds[3,:]
 
         save_parameters(tixi, name, Param)
+        index = get_aeromap_index(tixi, name)
+        path = """/cpacs/vehicles/aircraft/model/analyses/aeroPerformance/aeroMap{}
+               /aeroPerformanceMap/""".format(index)
+        for coef in COEF_LIST:
+            tixi.addTextAttribute(path+coef, 'mapType', 'vector')
 
 
-def get_current_aeromap_uid(tixi, module_list):
+def get_aeromap_index(tixi, am_uid):
+    """Return index of the aeromap to be used.
+
+    With the aeromap uID, the index of this aeromap is returned if there are
+    more than one in the CPACS file.
+
+    Args:
+        tixi (Tixi3 handle): Handle of the current CPACS file
+        am_uid (str): uID of the aeromap that will be used by all modules.
+
+    Returns:
+        am_index (str): The index of the aeromap between brackets.
+
+    """
+    am_list = get_aeromap_uid_list(tixi)
+    for i, uid in enumerate(am_list):
+        if uid == am_uid:
+            am_index = '[{}]'.format(i+1)
+
+    return am_index
+
+
+def get_current_aeromap_uid(tixi, module_name):
     """Return uid of selected aeromap.
 
-    Check the modules that will be run in the optimisation routine to specify
-    the uID of the correct aeromap in the CPACS file.
+    Check the modules that will be run and returns its affiliated uID.
 
     Args:
         module_list (lst): List of the modules that are run in the routine
@@ -1059,36 +1089,23 @@ def get_current_aeromap_uid(tixi, module_list):
     Returns:
         uid (str) : Name of the aeromap that is used for the routine
     """
-    uid = 'None'
-
-    for module in module_list:
-        if module == 'SU2Run':
-            log.info('Found SU2 analysis')
-            xpath = '/cpacs/toolspecific/CEASIOMpy/aerodynamics/su2/aeroMapUID'
-            uid = tixi.getTextElement(xpath)
-        elif module == 'PyTornado':
-            log.info('Found PyTornado analysis')
-            xpath = '/cpacs/toolspecific/pytornado/aeroMapUID'
-            uid = tixi.getTextElement(xpath)
-        elif module == 'SMUse':
-            log.info('Found a Surrogate model')
-            xpath = '/cpacs/toolspecific/CEASIOMpy/surrogateModelUse/aeroMapUID'
-
-    if 'SkinFriction' in module_list:
-        log.info('Found SkinFriction analysis')
-        uid = uid + '_SkinFriction'
+    if module_name == 'Optim':
+        xpath = '/cpacs/toolspecific/CEASIOMpy/Optimisation/aeroMapUID'
+        uid = tixi.getTextElement(xpath)
+    elif module_name == 'SMTrain':
+        xpath = '/cpacs/toolspecific/CEASIOMpy/surrogateModel/aeroMapUID'
+        uid = tixi.getTextElement(xpath)
+    elif module_name == 'SMUse':
+        xpath = '/cpacs/toolspecific/CEASIOMpy/surrogateModelUse/aeroMapUID'
+        uid = tixi.getTextElement(xpath)
 
     return uid
 
 
-def my_test_func():
-    # this is just a github test
-    pass
-
 # def modify_aeromap_uid(tixi,aeromap_uid, new aeromap_uid):
-# modify uid
-# modify name
-# fing in CPACS where this name is used... ?
+    # modify uid
+    # modify name
+    # find in CPACS where this name is used... ?
 
 
 # def convert_coefficients():
@@ -1097,6 +1114,113 @@ def my_test_func():
 
 # def add_points(alt_list,mach_list,aoa_list,aos_list)
     # """ Add a calculation point to an existing aeroPerformanceMap """
+
+
+#========================
+# New function using pandas
+
+def get_datafram_aeromap(tixi,aeromap_uid):
+    """Return the pandas datafram of an aeromap.
+
+    TODO: * test fuction
+          * modify other function to work with pandas
+
+    Args:
+        tixi (tixi handle): Tixi handle of the CPACS file.
+        aeromapuid (str): UID of the aeromap to retrun
+
+    Returns:
+        aeromap (df) : DataFrame of the aeromap
+    """
+
+    if not tixi.uIDCheckExists(aeromap_uid):
+        raise ValueError('The aeromap {} does not exist!'.format(aeromap_uid))
+
+    apm_xpath = tixi.uIDGetXPath(aeromap_uid) + '/aeroPerformanceMap'
+
+    # state_dict = {'alt': cpsf.get_float_vector(tixi,apm_xpath +'/altitude'),
+    #               'mach': cpsf.get_float_vector(tixi,apm_xpath +'/machNumber'),
+    #               'aoa': cpsf.get_float_vector(tixi,apm_xpath +'/angleOfAttack'),
+    #               'aos': cpsf.get_float_vector(tixi,apm_xpath +'/angleOfSideslip')}
+
+    state_dict = {}
+
+    for state,xstate in zip(STATES,XSTATES):
+        state_xpath = apm_xpath +'/' + xstate
+        state_dict[state] = cpsf.get_float_vector(tixi,state_xpath)
+
+    aeromap = pd.DataFrame(state_dict)
+
+
+    for coef in COEF_LIST:
+        coef_xpath = apm_xpath + '/' + coef
+        try:
+            coef_value_list = cpsf.get_float_vector(tixi,coef_xpath)
+        except:
+            coef_value_list = []
+
+        if coef_value_list:
+            aeromap[coef] = coef_value_list
+        else:
+            aeromap[coef] = float("NaN")
+
+    return aeromap
+
+
+def save_aeromap_from_df(tixi,aeromap_df,aeromap_uid,description='No decription'):
+    """ Saves AeroMap DataFrame into a CPACS file.
+
+    Function 'save_aeromap_from_df' will add all the required nodes for a new
+    aeroPerformanceMap, no value will be stored but function like 'create_aeromap' and
+    '???' could be used to fill it then.
+
+    Args:
+        tixi (handles): TIXI Handle of the CPACS file
+        aeromap_df (str): UID of the aeroPerformanceMap to create
+        aeromap_uid (str): UID of the aeroPerformanceMap to create
+        description (str): description of the aeroPerformanceMap to create
+        """
+
+    if tixi.uIDCheckExists(aeromap_uid):
+        log.warning('This UID already exits!')
+        aeromap_uid = aeromap_uid + '_bis'
+        log.warning(' The following UID will be used instead: ' + aeromap_uid )
+    else:
+        log.info(aeromap_uid + ' aeroMap will be created.')
+
+    # Add the /aeroMap node, or a new child is already exists
+    cpsf.create_branch(tixi,AEROPERFORMANCE_XPATH + '/aeroMap',True)
+    am_count = tixi.getNamedChildrenCount(AEROPERFORMANCE_XPATH, 'aeroMap')
+    aeromap_xpath = AEROPERFORMANCE_XPATH + '/aeroMap[' + str(am_count) + ']'
+
+    # Add UID and sub nodes
+    cpsf.add_uid(tixi, aeromap_xpath, aeromap_uid)
+    tixi.addTextElement(aeromap_xpath, 'name', aeromap_uid)
+    tixi.addTextElement(aeromap_xpath, 'description', description)
+    apm_bc_xpath = aeromap_xpath + '/boundaryConditions'
+    cpsf.create_branch(tixi, apm_bc_xpath)
+    tixi.addTextElement(apm_bc_xpath,'atmosphericModel','ISA')
+
+    # Add /AeroPerformanceMap and sub nodes
+    apm_xpath = aeromap_xpath + '/aeroPerformanceMap'
+    cpsf.create_branch(tixi,apm_xpath)
+
+    # Add states
+    for state,xstate in zip(STATES,XSTATES):
+        if not state in aeromap_df:
+            raise ValueError('Missing {} value in the AeroMap!'.format(state))
+        state_xpath = apm_xpath + '/' + xstate
+        cpsf.create_branch(tixi,state_xpath)
+        cpsf.add_float_vector(tixi,state_xpath,aeromap_df[state].tolist())
+
+    # Add coefficients
+    for coef in COEF_LIST:
+        if coef in aeromap_df:
+            coef_xpath = apm_xpath + '/' + coef
+            cpsf.create_branch(tixi,coef_xpath)
+            cpsf.add_float_vector(tixi,coef_xpath,aeromap_df[coef].tolist())
+        else:
+            log.info('There is no {} coefficient in this AeroMap!'.format(coef))
 
 
 #==============================================================================

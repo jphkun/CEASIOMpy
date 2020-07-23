@@ -261,7 +261,7 @@ def create_wf_gui():
 
     root = tk.Tk()
     root.title('Workflow Creator')
-    root.geometry('475x490+400+300')
+    root.geometry('475x495+400+300')
     my_gui = WorkFlowGUI()
     my_gui.mainloop()
     disg = my_gui.Options
@@ -304,11 +304,11 @@ if __name__ == '__main__':
         Opt = WorkflowOptions()
 
         # These options can be modified here if WorkflowCreator is used without GUI
-        Opt.cpacs_path = '../../test/CPACSfiles/simpletest_cpacs.xml'
-        Opt.module_pre = ['SettingsGUI', 'PyTornado']
-        Opt.module_optim = []
+        # Opt.cpacs_path = '../../test/CPACSfiles/simpletest_cpacs.xml'
+        Opt.module_pre = []
+        Opt.module_optim = ['WeightConventional', 'PyTornado']
 
-        Opt.optim_method = 'Optim' # DoE, Optim, None
+        Opt.optim_method = 'DoE' # DoE, Optim, None
         Opt.module_post = []
 
     # Copy ToolInput.xml in ToolInput dir if not already there

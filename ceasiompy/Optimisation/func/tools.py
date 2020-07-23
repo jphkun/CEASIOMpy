@@ -22,11 +22,13 @@ TODO
 #==============================================================================
 #   IMPORTS
 #==============================================================================
+import os
+import sys
 import numpy as np
 import openmdao.api as om
 import matplotlib.pyplot as plt
 import pandas as pd
-import tigl3.configuration
+import tigl3.configuration #used within eval
 
 from ceasiompy.utils.ceasiomlogger import get_logger
 
@@ -48,38 +50,29 @@ accronym_dict = {'maximum_take_off_mass':'mtom', 'range':'rng',
 #   FUNCTIONS
 #==============================================================================
 
-### --------------- TESTFUNCTION --------------- ###
+### --------------- MISCELLANEOUS --------------- ###
 # -------------------------------------------------#
 
-def estimate_volume(tigl):
-    """Estimate aircraft volume.
-
-    First approximation of the aircraft fuselage volume. Temporary solution
-    to the unsolved issue of calling fuselageGetVolume multiple times.
-    Update : For the moment the get_width/get_height functions also encounter
-    this isssue, another solution has to be found.
+def launch_external_program(path):
+    """Launches an application with a predefined CSV to open.
 
     Args:
-        tigl (tigl3 handle) : Handle of the current CPACS
+        path (str):
 
     Returns:
-        volume (float) : Estimated value of the volume for the current
-        aircraft
+        None.
 
     """
-    mgr =  tigl3.configuration.CCPACSConfigurationManager_get_instance()
+    OS = sys.platform
+    log.info('Identified OS : '+OS)
+    if OS == 'linux':
+        os.system('libreoffice ' + path)
+    elif OS == 'win32':
+        os.system('Start excel.exe ' + path.replace('/', '\\'))
+    elif OS == 'darwin':
+        os.system('Numbers ' + path)
 
-    aircraft = mgr.get_configuration(tigl._handle.value)
-    fuselage = aircraft.get_fuselages().get_fuselage(1)
-
-    # Retrieve ctigl element from the middle of the plane
-    snb = round(fuselage.get_section_count()/2)
-    sec = fuselage.get_section(snb)
-    el = sec.get_section_element(1)
-    cel = el.get_ctigl_section_element()
-
-    volume = (cel.get_width()+cel.get_height())**2*fuselage.get_length()/16*3.14
-    return volume
+    input('Press ENTER to continue...')
 
 
 ### --------------- FUNCTIONS FOR POST-PROCESSING --------------- ###
@@ -105,13 +98,16 @@ def display_results(prob, optim_var_dict, Rt):
     log.info('=========================================')
     log.info('min = ' + str(prob['objective.{}'.format(Rt.objective)]))
 
-    for name, (val_type, listval, minval, maxval, getcommand, setcommand) in optim_var_dict.items():
+    for name, (val_type, listval, minval, maxval,
+               getcommand, setcommand) in optim_var_dict.items():
         if val_type == 'des':
-            log.info(name + ' = ' + str(prob['indeps.'+name]) + '\n Min :' + str(minval) + ' Max : ' + str(maxval))
+            log.info(name+' = ' + str(prob['indeps.' + name]))
+            log.info('Min :' + str(minval) + ' Max : ' + str(maxval))
 
     log.info('Variable history :')
 
-    for name, (val_type, listval, minval, maxval, getcommand, setcommand) in optim_var_dict.items():
+    for name, (val_type, listval, minval, maxval,
+               getcommand, setcommand) in optim_var_dict.items():
         if val_type == 'des':
             log.info(name + ' => ' + str(listval))
     log.info('=========================================')
@@ -125,45 +121,32 @@ def read_results(optim_dir_path, optim_var_dict={}):
     convenient.
 
     Args:
-        optim_dir_path (str) : Path to the SQL file directory.
+        optim_dir_path (str): Path to the SQL file directory.
+        optim_var_dict (dct): Contains the variables.
 
     Returns:
         df (DataFrame) : Contains all parameters of the routine
 
     """
-    # Read recorded options
-    cr = om.CaseReader(optim_dir_path + '/Driver_recorder.sql')
+    # # Read recorded options
+    # cr = om.CaseReader(optim_dir_path + '/Driver_recorder.sql')
 
-    cases = cr.get_cases()
+    # cases = cr.get_cases()
 
-    # Initiates dictionnaries
-    case1 = cr.get_case(0)
+    # # Initiates dictionnaries
+    # case1 = cr.get_case(0)
     obj = {}
     des = {}
     const = {}
 
-    # Rename keys
-
-    for k, v in dict(case1.get_design_vars()).items():
-        des[k.replace('indeps.','')] = v
-    for k, v in dict(case1.get_constraints()).items():
-        if 'const' in k:
-            const[k.replace('const.','')] = v
-    # Retrieve data from SQL file
-    for case in cases:
-        for key, val in case.get_design_vars().items():
-            key = key.replace('indeps.','')
-            des[key] = np.append(des[key], val)
-
-        for key, val in case.get_constraints().items():
-            if 'const' in key:
-                key = key.replace('const.','')
-                const[key] = np.append(const[key], val)
-
     # Retrieve data from optim variables
-    for name, (val_type, listval, minval, maxval, getcommand, setcommand) in optim_var_dict.items():
-        if val_type == 'obj':
-            obj[name] = np.array(listval)
+    for name, infos in optim_var_dict.items():
+        if infos[0] == 'obj':
+            obj[name] = np.array(infos[1])
+        if infos[0] == 'des':
+            des[name] = np.array(infos[1])
+        if infos[0] == 'const':
+            const[name] = np.array(infos[1])
 
     df_o = pd.DataFrame(obj).transpose()
     df_d = pd.DataFrame(des).transpose()
@@ -173,19 +156,16 @@ def read_results(optim_dir_path, optim_var_dict={}):
     df_d.insert(0, 'type', 'des')
     df_c.insert(0, 'type', 'const')
 
-    df = pd.concat([df_o,df_d,df_c], axis=0)
-    df.sort_values('type',0, ignore_index=True, ascending=False)
-
-    # Drop duplicate (first and second columns are the same)
-    df = df.drop(0,1)
+    df = pd.concat([df_o, df_d, df_c], axis=0)
+    df.sort_values('type', 0, ignore_index=True, ascending=False)
 
     # Add get and set commands
     df.insert(1, 'getcmd', '-')
     df.insert(2, 'setcmd', '-')
     for v in df.index:
         if v in optim_var_dict:
-            df.loc[v,'getcmd'] = optim_var_dict[v][4]
-            df.loc[v,'setcmd'] = optim_var_dict[v][5]
+            df.loc[v, 'getcmd'] = optim_var_dict[v][4]
+            df.loc[v, 'setcmd'] = optim_var_dict[v][5]
 
     return df
 
@@ -241,8 +221,8 @@ def plot_results(optim_dir_path, routine_type, optim_var_dict={}):
     df.pop('getcmd')
     df.pop('setcmd')
     df = df.transpose()
-    nbC = min(len(des),5)
-    df.plot(subplots=True, layout=(-1,nbC))
+    nbC = min(len(des), 5)
+    df.plot(subplots=True, layout=(-1, nbC))
 
     plot_objective(optim_dir_path)
 
@@ -271,18 +251,18 @@ def plot_objective(optim_dir_path):
     obj = {}
 
     for k, v in dict(case1.get_objectives()).items():
-        obj[k.replace('objective.','')] = v
+        obj[k.replace('objective.', '')] = v
 
     for case in cases:
         for key, val in case.get_objectives().items():
-            key = key.replace('objective.','')
+            key = key.replace('objective.', '')
             obj[key] = np.append(obj[key], val)
     df_o = pd.DataFrame(obj).transpose()
-    df_o = df_o.drop(0,1)
+    df_o = df_o.drop(0, 1)
     df_o = df_o.transpose()
-    nbC = min(len(obj),5)
+    nbC = min(len(obj), 5)
 
-    df_o.plot(subplots=True, layout=(-1,nbC))
+    df_o.plot(subplots=True, layout=(-1, nbC))
     plt.show()
 
 
@@ -301,16 +281,16 @@ def gen_plot(df, yvars, xvars):
 
     """
     plt.figure()
-    nbC = min(len(xvars),5)
-    if nbC == 0 :
+    nbC = min(len(xvars), 5)
+    if nbC == 0:
         nbC = 1
     nbR = int(len(yvars) * np.ceil(len(xvars)/nbC))
     r = 0
     c = 1
     for o in yvars:
         for d in xvars:
-            plt.subplot(nbR,nbC,c+r*nbC)
-            plt.scatter(df[d],df[o])
+            plt.subplot(nbR, nbC, c+r*nbC)
+            plt.scatter(df[d], df[o])
             plt.xlabel(d)
             if c == 1:
                 plt.ylabel(o)
@@ -340,45 +320,44 @@ def is_digit(value):
         Boolean.
 
     """
-    if type(value) is list:
+    if isinstance(value, list):
         return False
-    else:
-        try:
-            float(value)
-            return True
-        except:
-            return False
+
+    try:
+        float(value)
+        return True
+    except:
+        return False
 
 
-def accronym(name):
-    """Return accronym of a name. (EXPERIMENTAL FEATURE)
+def change_var_name(name):
+    """Modify the variable name
 
-    In order to detect the values specified by the user as accronyms, the
-    complete name of a variable is decomposed and the first letter of
-    each word is taken.
+    Checks for special characters and replaces them with '_' which can be taken
+    as a variable name for the OpenMDAO problem, and checks if an accronym is used.
 
     Ex : 'maximum take off mass' -> 'mtom'
 
     Args:
-        name (str) : Name of a variable.
+        name (str): variable name.
 
     Returns:
-        accro (str) : Accronym of the name.
+        new_name (str): new variable_name.
 
     """
-    # full_name = name.split('_')
-    # accro = ''
-    # for word in full_name:
-    #     if word.lower() in ['nb']:
-    #         accro += word
-    #     else:
-    #         accro += word[0]
+    log.info('Check variable name {}'.format(name))
+
+    if 'range' in name or 'payload' in name:
+        for s in name:
+            if s in ['[', ']']:
+                name = name.replace(s, '_')
+        log.info('Variable name was changed to {}'.format(name))
 
     if name in accronym_dict:
-        log.info('Accronym : ' + accronym_dict[name])
+        log.info('Variable name was changed to {}'.format(accronym_dict[name]))
         return accronym_dict[name]
-    else:
-        return ''
+
+    return name
 
 
 def add_type(entry, outputs, objective, var):
@@ -401,9 +380,9 @@ def add_type(entry, outputs, objective, var):
 
     """
     if entry in outputs:
-        if type(entry) != str:
+        if not isinstance(entry, str):
             entry = entry.var_name
-        if entry in objective or accronym(entry) in objective:
+        if entry in objective:
             var['type'].append('obj')
             log.info('Added type : obj')
         else:
@@ -414,14 +393,13 @@ def add_type(entry, outputs, objective, var):
         log.info('Added type : des')
 
 
-def add_bounds(name, value, var):
+def add_bounds(value, var):
     """Add upper and lower bound.
 
     20% of the initial value is added and substracted to create the
     boundaries.
 
     Args:
-    name (str) : Name of a variable
     value (str) : Initial value of the variable
     var (dct) : Variable dictionary
 
@@ -430,8 +408,8 @@ def add_bounds(name, value, var):
 
     """
     if value in ['False', 'True']:
-            lower = '-'
-            upper = '-'
+        lower = '-'
+        upper = '-'
     elif value.isdigit():
         value = int(value)
         lower = round(value-abs(0.2*value))
