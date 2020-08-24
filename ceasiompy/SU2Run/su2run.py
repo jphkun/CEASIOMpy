@@ -126,7 +126,7 @@ def run_SU2_multi(wkdir, nb_proc):
 
 
 # TODO: The deformation part should be moved to SU2MeshDef module
-def run_SU2_fsi(config_path, wkdir, nb_proc):
+def run_SU2_fsi(config_path, wkdir, case, loopNumber):
     """Function to run a SU2 claculation for FSI .
 
     Function 'run_SU2_fsi' deforms an element of the mesh (e.g. wing) from
@@ -138,40 +138,152 @@ def run_SU2_fsi(config_path, wkdir, nb_proc):
         config_path (str): Path to the configuration file
         wkdir (str): Path to the working directory
 
+    ##########################################################################
+    # old version!
+    # cfg_def['DV_KIND'] = 'SURFACE_FILE'
+    # cfg_def['DV_MARKER'] = 'Wing'
+    # cfg_def['DV_FILENAME'] = 'disp.dat' # TODO: Should be a constant or find in CPACS ?
+    # # TODO: Do we need that? if yes, find 'WING' in CPACS
+    # cfg_def['DV_PARAM'] = ['WING', '0', '0', '1', '0.0', '0.0', '1.0']
+    # cfg_def['DV_VALUE'] = 0.01
+    ##########################################################################
     """
 
     if not os.path.exists(wkdir):
         raise OSError('The working directory : ' + wkdir + 'does not exit!')
 
     original_dir = os.getcwd()
-    os.chdir(wkdir)
+    # Number of iteration desired
+    N = config_path['SU2_Niter']
+    nb_proc = config_path['SU2_Nproc']
+    # Step 1) Check in which iteration the solver is
+    wkdir = wkdir + '/CFD'
+    # Assembles SU2 configuration file path
+    simulationPath = wkdir + case
 
-    # Modify config file for SU2_DEF
-    config_def_path = os.path.join(wkdir,'ConfigDEF.cfg')
-    cfg_def = su2f.read_config(config_path)
+    if loopNumber == 0:
+        # Gets the original Configuration file path and creates the first
+        # iteration result folder, changes the program directory to this one'
+        originalCFDConfigPath = os.path.join(simulationPath,'ConfigCFD.cfg')
 
-    cfg_def['DV_KIND'] = 'SURFACE_FILE'
-    cfg_def['DV_MARKER'] = 'Wing'
-    cfg_def['DV_FILENAME'] = 'disp.dat' # TODO: Should be a constant or find in CPACS ?
-    # TODO: Do we need that? if yes, find 'WING' in CPACS
-    cfg_def['DV_PARAM'] = ['WING', '0', '0', '1', '0.0', '0.0', '1.0']
-    cfg_def['DV_VALUE'] = 0.01
-    su2f.write_config(config_def_path,cfg_def)
+        # Assembles MESH file path
+        originalCFDMeshPath = wkdir + '/MESH/'
+        meshFileName = os.listdir(originalCFDMeshPath)
+        originalCFDMeshPath += meshFileName[0]
 
-    # Modify config file for SU2_CFD
-    config_cfd_path = os.path.join(wkdir,'ConfigCFD.cfg')
-    cfg_cfd = su2f.read_config(config_path)
-    cfg_cfd['MESH_FILENAME'] = 'mesh_out.su2'
-    su2f.write_config(config_cfd_path,cfg_cfd)
+        # Creates a folder for the current iteration
+        wkdir = os.path.join(simulationPath, str(loopNumber))
+        os.makedirs(wkdir)
+        os.chdir(wkdir)
 
-    su2f.run_soft('SU2_DEF',config_def_path,wkdir,nb_proc)
-    su2f.run_soft('SU2_CFD',config_cfd_path,wkdir,nb_proc)
-    su2f.run_soft('SU2_SOL',config_cfd_path,wkdir,nb_proc)
+        # Writes the configuration file into the current iteration folder and
+        # starts the simulation. Modify the configuration file
+        cfg_cfd = su2f.read_config(originalCFDConfigPath)
+        cfg_cfd['MESH_FILENAME'] = originalCFDMeshPath
+        cfg_cfd['SOLUTION_FILENAME'] = 'solution_flow.dat'
+        cfg_cfd['SOLUTION_ADJ_FILENAME'] = 'solution_adj.dat'
+        cfg_cfd['RESTART_FILENAME'] = 'solution_flow.dat'
+        cfg_cfd['RESTART_ADJ_FILENAME'] = 'solution_adj.dat'
+        cfg_cfd['INNER_ITER'] = N
+        cfg_cfd['RESTART_SOL'] = 'NO'
+        currentCFDConfigPath = os.path.join(wkdir,'ConfigCFD.cfg')
+        su2f.write_config(currentCFDConfigPath,cfg_cfd)
 
-    extract_loads(wkdir)
+        # Runs the simulation and computes the results
+        su2f.run_soft('SU2_CFD',currentCFDConfigPath,wkdir,nb_proc)
+        su2f.run_soft('SU2_SOL',currentCFDConfigPath,wkdir,nb_proc)
+        print(wkdir)
+        extract_loads(wkdir)
 
+    else:
+        # TODO in order to restart the solution, the soltion_flow.vtu of the
+        # last aeroelastic step should be put into the next one. Sadly it looks
+        # like the solver does not support deformed files. Maybe run the
+        # SU2_SOL first could solve the problem.
+        
+        # Gets the original Configuration file path and creates the first
+        # iteration result folder, changes the program directory to this one
+        # Assembles SU2 configuration file path
+        print(simulationPath)
+        originalCFDConfigPath = os.path.join(simulationPath,'ConfigCFD.cfg')
+        # originalDEFConfigPath = os.path.join(wkdir,'ConfigDEF.cfg')
+        originalSolutionPath = os.path.join(wkdir,str(loopNumber-1))
+        # previous working directory
+        print(simulationPath)
+        prdir = os.path.join(simulationPath,str(loopNumber - 1))
+        # current working directory
+        print(simulationPath)
+        wkdir = os.path.join(simulationPath,str(loopNumber))
+        os.makedirs(wkdir)
+        os.chdir(wkdir)
+
+        # Writes the configuration file into the current iteration folder and
+        # starts the simulation. It looks like the restart solution is not
+        # possible with a deformed mesh
+        cfg_cfd = su2f.read_config(originalCFDConfigPath)
+        # Last iteration solution that is fed into the current iteration.
+        cfg_cfd['SOLUTION_FILENAME'] = prdir + '/solution_flow.dat'
+        cfg_cfd['SOLUTION_ADJ_FILENAME'] = prdir + '/solution_adj.dat'
+        # Solution output that will be read next iteration
+        cfg_cfd['RESTART_FILENAME'] = 'solution_flow.dat'
+        cfg_cfd['RESTART_ADJ_FILENAME'] = 'solution_adj.dat'
+        # Path is correct but there is a core dump. It is really complicated
+        # to find where the bug comes from.
+        cfg_cfd['RESTART_SOL'] = 'NO'
+        cfg_cfd['MESH_FILENAME'] = 'deformed.su2'
+        # cfg_cfd['RESTART_ITER'] = N + loopNumber * (N/1)
+        cfg_cfd['INNER_ITER'] = N
+        currentCFDConfigPath = os.path.join(wkdir,'ConfigCFD.cfg')
+        su2f.write_config(currentCFDConfigPath,cfg_cfd)
+
+        # Modification of the config file for SU2_DEF function
+        cfg_def = su2f.read_config(originalCFDConfigPath)
+        # path = cfg_def['MESH_FILENAME']
+        meshPath = os.path.dirname(os.path.dirname(originalCFDConfigPath))
+        meshPath = os.path.join(meshPath,'MESH')
+        # print(meshPath)
+        meshName = os.listdir(meshPath)
+        # print(meshName[0])
+        cfg_def['MESH_FILENAME'] = os.path.join(meshPath,meshName[0])
+        cfg_def['MESH_OUT_FILENAME'] = 'deformed.su2'
+        ###################################################
+        cfg_def['DV_KIND'] = 'SURFACE_FILE'
+        cfg_def['DV_MARKER'] = cfg_def['MARKER_EULER']
+        cfg_def['DV_PARAM'] = (1, 0.5)
+        cfg_def['DV_VALUE'] = 0.1
+        cfg_def['DV_FILENAME'] = prdir + '/disp.dat'
+        ##################################################
+        cfg_def['MARKER_DEFORM_MESH'] = cfg_def['MARKER_EULER']
+        # 'FGMRES','RESTARTED_FGMRES','BCGSTAB'
+        cfg_def['DEFORM_LINEAR_SOLVER'] = 'FGMRES'
+        cfg_def['DEFORM_LINEAR_SOLVER_PREC'] = 'LU_SGS'
+        cfg_def['DEFORM_LINEAR_SOLVER_ITER'] = 1500
+        cfg_def['DEFORM_NONLINEAR_ITER'] = 1
+        cfg_def['DEFORM_CONSOLE_OUTPUT'] = 'YES'
+        cfg_def['DEFORM_LINEAR_SOLVER_ERROR'] = 1E-14
+        cfg_def['DEFORM_COEFF'] = 1E6
+        # 'INVERSE_VOLUME', 'WALL_DISTANCE', 'CONSTANT_STIFFNESS'
+        cfg_def['DEFORM_STIFFNESS_TYPE'] = 'WALL_DISTANCE'
+        cfg_def['VISUALIZE_SURFACE_DEF'] = 'YES'
+        cfg_def['VISUALIZE_VOLUME_DEF'] = 'YES'
+        ###################################################
+        cfg_def['CONV_CRITERIA'] = 'CAUCHY'
+        cfg_def['CONV_RESIDUAL_MINVAL'] = -8
+        cfg_def['CONV_STARTITER'] = 10
+        cfg_def['CONV_CAUCHY_ELEMS'] = 100
+        cfg_def['CONV_CAUCHY_EPS'] = 1E-6
+        ###################################################
+        # cfg_def['DEFORM_MESH'] = 'YES'
+        ###################################################
+        currentDEFConfigPath = os.path.join(wkdir,'ConfigDEF.cfg')
+        su2f.write_config(currentDEFConfigPath,cfg_def)
+
+        su2f.run_soft('SU2_DEF',currentDEFConfigPath,wkdir,nb_proc)
+        sys.exit()
+        su2f.run_soft('SU2_CFD',currentCFDConfigPath,wkdir,nb_proc)
+        su2f.run_soft('SU2_SOL',currentCFDConfigPath,wkdir,nb_proc)
+        extract_loads(wkdir)
     os.chdir(original_dir)
-
 
 #==============================================================================
 #    MAIN

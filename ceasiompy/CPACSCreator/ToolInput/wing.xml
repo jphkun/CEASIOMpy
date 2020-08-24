@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<cpacs xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://cpacs.googlecode.com/files/CPACS_21_Schema.xsd">
+  <header>
+    <name>Empty</name>
+    <description>Empty aircraft</description>
+    <creator>Malo Drougard</creator>
+    <timestamp>2019-02-27T15:12:47</timestamp>
+    <version>0.2</version>
+    <cpacsVersion>3.0</cpacsVersion>
+    <updates>
+    </updates>
+  </header>
+  <vehicles>
+    <aircraft>
+      <model uID="CpacsAircraft">
+        <name>Cpacs2Test</name>
+        <reference>
+          <area>1</area>
+          <length>1</length>
+          <point>
+            <x>0</x>
+            <y>0</y>
+            <z>0</z>
+          </point>
+        </reference>
+        <fuselages>
+	</fuselages>
+        <wings>  
+	<wing uID="generatedWing"><name>generatedWing</name><description>Wing generated from the function CCPACSWings::CreateWing</description><transformation uID="generatedWingTransformation"><scaling uID="generatedWingTransformationScal"><x>1</x><y>1</y><z>1</z></scaling><rotation uID="generatedWingTransformationRot"><x>0</x><y>0</y><z>0</z></rotation><translation uID="generatedWingTransformationTransl"><x>0</x><y>0</y><z>0</z></translation></transformation><sections><section uID="generatedWingSec1"><name>generatedWingSec1</name><transformation uID="generatedWingSec1Tr"><scaling uID="generatedWingSec1TrScal"><x>1</x><y>1</y><z>1</z></scaling><rotation uID="generatedWingSec1TrRot"><x>0</x><y>0</y><z>0</z></rotation><translation uID="generatedWingSec1TrTransl"><x>0</x><y>0</y><z>0</z></translation></transformation><elements><element uID="generatedWingSec1Elem1"><name>generatedWingSec1Elem1</name><airfoilUID>NACA2315</airfoilUID><transformation uID="generatedWingSec1Elem1Tr"><scaling uID="generatedWingSec1Elem1TrScal"><x>1</x><y>1</y><z>1</z></scaling><rotation uID="generatedWingSec1Elem1TrRot"><x>0</x><y>0</y><z>0</z></rotation><translation uID="generatedWingSec1Elem1TrTransl"><x>0</x><y>0</y><z>0</z></translation></transformation></element></elements></section><section uID="generatedWingSec2"><name>generatedWingSec2</name><transformation uID="generatedWingSec2Tr"><scaling uID="generatedWingSec2TrScal"><x>1</x><y>1</y><z>1</z></scaling><rotation uID="generatedWingSec2TrRot"><x>0</x><y>0</y><z>0</z></rotation><translation uID="generatedWingSec2TrTransl"><x>0</x><y>0</y><z>0</z></translation></transformation><elements><element uID="generatedWingSec2Elem1"><name>generatedWingSec2Elem1</name><airfoilUID>NACA2315</airfoilUID><transformation uID="generatedWingSec2Elem1Tr"><scaling uID="generatedWingSec2Elem1TrScal"><x>1</x><y>1</y><z>1</z></scaling><rotation uID="generatedWingSec2Elem1TrRot"><x>0</x><y>0</y><z>0</z></rotation><translation uID="generatedWingSec2Elem1TrTransl"><x>0</x><y>0</y><z>0</z></translation></transformation></element></elements></section></sections><positionings><positioning uID="generatedWingSec1GenPos"><name></name><length>0</length><sweepAngle>0</sweepAngle><dihedralAngle>0</dihedralAngle><fromSectionUID></fromSectionUID><toSectionUID>generatedWingSec1</toSectionUID></positioning><positioning uID="generatedWingSec2GenPos"><name></name><length>1</length><sweepAngle>0</sweepAngle><dihedralAngle>0</dihedralAngle><fromSectionUID>generatedWingSec1</fromSectionUID><toSectionUID>generatedWingSec2</toSectionUID></positioning></positionings><segments><segment uID="generatedWingSeg1"><name>generatedWingSeg1</name><fromElementUID>generatedWingSec1Elem1</fromElementUID><toElementUID>generatedWingSec2Elem1</toElementUID></segment></segments></wing></wings>
+      </model>
+    </aircraft>
+    <profiles>
+      <wingAirfoils>
+      <wingAirfoil uID="NACA2315"><name>NACA2315</name><pointList><x mapType="vector">1;0.998443;0.993781;0.986046;0.975287;0.961576;0.945;0.925668;0.903703;0.879247;0.852457;0.823501;0.792563;0.759838;0.725532;0.689857;0.653037;0.615299;0.576876;0.538004;0.498921;0.459865;0.421073;0.38278;0.345215;0.308605;0.273902;0.240761;0.209115;0.17913;0.150964;0.124772;0.100702;0.078897;0.059495;0.042625;0.028406;0.016946;0.008342;0.002672;0;0.000411;0.00397;0.010684;0.020538;0.033496;0.049498;0.068462;0.090281;0.114822;0.141929;0.171422;0.2031;0.236741;0.272107;0.308711;0.345768;0.383775;0.422492;0.461676;0.501079;0.540455;0.579558;0.618146;0.65598;0.692826;0.728459;0.76266;0.795222;0.825947;0.85465;0.881159;0.905314;0.926972;0.946007;0.962304;0.975769;0.986324;0.993907;0.998475;1</x><y mapType="vector">0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0</y><z mapType="vector">0;-0.000191;-0.000762;-0.001702;-0.002996;-0.004623;-0.006557;-0.008771;-0.011234;-0.013915;-0.01678;-0.019798;-0.022935;-0.026158;-0.029429;-0.032713;-0.035966;-0.039144;-0.042197;-0.045069;-0.047701;-0.050029;-0.051987;-0.053509;-0.05453;-0.054989;-0.054958;-0.054666;-0.054036;-0.052985;-0.051439;-0.049334;-0.046619;-0.043252;-0.039205;-0.034457;-0.028997;-0.022819;-0.015925;-0.008316;0;0.008726;0.017549;0.026419;0.035256;0.043963;0.052418;0.060488;0.068031;0.074902;0.08096;0.086071;0.090118;0.092999;0.094634;0.094982;0.094361;0.092943;0.090776;0.087919;0.084435;0.080397;0.075878;0.070955;0.065707;0.060211;0.054546;0.04879;0.043023;0.037322;0.031766;0.026434;0.021403;0.016749;0.012543;0.008854;0.005744;0.003265;0.001462;0.000367;0</z></pointList></wingAirfoil></wingAirfoils>
+      <fuselageProfiles>
+      </fuselageProfiles>
+    </profiles>
+  </vehicles>
+  <toolspecific>
+  </toolspecific>
+</cpacs>
